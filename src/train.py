@@ -17,6 +17,7 @@ import logging
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import root_mean_squared_error, r2_score
+from dotenv import load_dotenv
 
 from data_ingestion import full_pipeline_from_csv
 
@@ -24,25 +25,45 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Hyperparameters (from notebook)
-N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 10))
+N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 2))
 RANDOM_STATE = int(os.getenv("RANDOM_STATE", 42))
 TEST_SIZE = float(os.getenv("TEST_SIZE", 0.2))
 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+
+mode = os.getenv("MODE")
+#print(mode)
+
+if mode == "local":
+    MLFLOW_TRACKING_URI = "file:./mlruns"
+    S3_BUCKET = "local_bucket"
+    print("local")
+else:
+    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+    S3_BUCKET = os.getenv("S3_BUCKET")
+    #problem already exists here.
+    print("cloud")
+
+
 # Env / AWS/MLflow config
-MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")  # e.g. s3://bucket/mlflow/
-S3_BUCKET = os.getenv("S3_BUCKET")
-S3_MODEL_KEY = os.getenv("S3_MODEL_KEY", "models/latest_model.pkl")
+#MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")  # e.g. s3://bucket/mlflow/
+#S3_BUCKET = os.getenv("S3_BUCKET")
+S3_MODEL_KEY = os.getenv("S3_MODEL_KEY")
 TRAIN_CSV = os.getenv("TRAIN_CSV", "data/train.csv")
 MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "mlops-demo")
+aws_access_key=os.getenv("AWS_ACCESS_KEY_ID")
+aws_secret_access=os.getenv("AWS_SECRET_ACCESS_KEY")
+region=os.getenv("AWS_REGION")
+
 
 
 def upload_file_to_s3(local_path: str, bucket: str, key: str):
     """Upload a file to S3 at s3://{bucket}/{key} using boto3 and env creds."""
     s3 = boto3.client(
         "s3",
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        region_name=os.getenv("AWS_REGION"),
+        aws_access_key_id=aws_access_key,
+        aws_secret_access_key=aws_secret_access,
+        region_name=region,
     )
     logger.info("Uploading %s to s3://%s/%s", local_path, bucket, key)
     s3.upload_file(local_path, bucket, key)
