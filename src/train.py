@@ -29,18 +29,20 @@ N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 2))
 RANDOM_STATE = int(os.getenv("RANDOM_STATE", 42))
 TEST_SIZE = float(os.getenv("TEST_SIZE", 0.2))
 
-load_dotenv()
-
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-mode = os.getenv("MODE", "local")
+mode = os.getenv("MODE")
+#print(mode)
 
 if mode == "local":
     MLFLOW_TRACKING_URI = "file:./mlruns"
     S3_BUCKET = "local_bucket"
+    print("local")
 else:
     MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     S3_BUCKET = os.getenv("S3_BUCKET")
+    #problem already exists here.
+    print("cloud")
 
 
 # Env / AWS/MLflow config
@@ -53,13 +55,6 @@ aws_access_key=os.getenv("AWS_ACCESS_KEY_ID")
 aws_secret_access=os.getenv("AWS_SECRET_ACCESS_KEY")
 region=os.getenv("AWS_REGION")
 
-
-
-# Debug print to confirm
-print(">>> ENV MODE CHECK <<<")
-print("S3_BUCKET:", os.getenv("S3_BUCKET"))
-print("MLFLOW_TRACKING_URI:", os.getenv("MLFLOW_TRACKING_URI"))
-print("AWS_REGION:", os.getenv("AWS_REGION"))
 
 
 def upload_file_to_s3(local_path: str, bucket: str, key: str):
