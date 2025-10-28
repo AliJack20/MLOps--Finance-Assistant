@@ -92,8 +92,9 @@ def main():
             local_model_path = tf.name
 
         # Upload to S3 (explicit)
-        upload_file_to_s3(local_model_path, S3_BUCKET, S3_MODEL_KEY)
-        logger.info("Model uploaded to s3://%s/%s", S3_BUCKET, S3_MODEL_KEY)
+        # upload_file_to_s3(local_model_path, S3_BUCKET, S3_MODEL_KEY)
+        # logger.info("Model uploaded to s3://%s/%s", S3_BUCKET, S3_MODEL_KEY)
+        #hello world
 
         # Log S3 location as tag/artifact
         mlflow.set_tag("s3_model_path", f"s3://{S3_BUCKET}/{S3_MODEL_KEY}")
