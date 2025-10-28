@@ -16,7 +16,7 @@ import boto3
 import logging
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import root_mean_squared_error, r2_score
 
 from data_ingestion import full_pipeline_from_csv
 
@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Hyperparameters (from notebook)
-N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 1185))
+N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 10))
 RANDOM_STATE = int(os.getenv("RANDOM_STATE", 42))
 TEST_SIZE = float(os.getenv("TEST_SIZE", 0.2))
 
@@ -72,7 +72,7 @@ def main():
 
         # Eval
         preds = model.predict(X_val)
-        rmse = mean_squared_error(y_val, preds, squared=False)
+        rmse = root_mean_squared_error(y_val, preds)
         r2 = r2_score(y_val, preds)
 
         logger.info("Validation RMSE: %.4f, R2: %.4f", rmse, r2)
@@ -84,7 +84,7 @@ def main():
         mlflow.log_param("random_state", RANDOM_STATE)
 
         # Log model in MLflow (this will store artifacts to the MLflow tracking uri -> S3)
-        mlflow.sklearn.log_model(model, artifact_path="model")
+        mlflow.sklearn.log_model(model, name="model")
 
         # Also save a copy to a temp file and upload to S3 as latest_model.pkl for inference script
         with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tf:
