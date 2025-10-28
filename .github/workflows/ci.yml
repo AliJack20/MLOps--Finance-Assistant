@@ -102,6 +102,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          IMAGE_NAME: myapp
           docker build -t $ECR_REGISTRY/${{ env.IMAGE_NAME }}:$IMAGE_TAG .
           docker push $ECR_REGISTRY/${{ env.IMAGE_NAME }}:$IMAGE_TAG
           echo "✅ Image pushed to ECR: $ECR_REGISTRY/${{ env.IMAGE_NAME }}:$IMAGE_TAG"

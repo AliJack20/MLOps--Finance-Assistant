@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 S3_BUCKET = os.getenv("S3_BUCKET")
-S3_MODEL_KEY = os.getenv("S3_MODEL_KEY", "models/latest_model.pkl")
+S3_MODEL_KEY = os.getenv("S3_MODEL_KEY", "models/model.pkl")
 
 
 def download_model_from_s3(bucket: str = S3_BUCKET, key: str = S3_MODEL_KEY) -> str:
