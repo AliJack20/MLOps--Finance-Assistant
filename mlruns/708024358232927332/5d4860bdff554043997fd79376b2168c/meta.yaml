@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Ali/DataScience_Projects/MLOps-FinanceAssistant/mlruns/708024358232927332/5d4860bdff554043997fd79376b2168c/artifacts
+end_time: 1761640629676
+entry_point_name: ''
+experiment_id: '708024358232927332'
+lifecycle_stage: active
+run_id: 5d4860bdff554043997fd79376b2168c
+run_name: chill-kit-359
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1761640553753
+status: 4
+tags: []
+user_id: Ali

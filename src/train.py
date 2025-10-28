@@ -84,7 +84,7 @@ def main():
         mlflow.log_param("random_state", RANDOM_STATE)
 
         # Log model in MLflow (this will store artifacts to the MLflow tracking uri -> S3)
-        mlflow.sklearn.log_model(model, artifact_path="model")
+        mlflow.sklearn.log_model(model, name="model")
 
         # Also save a copy to a temp file and upload to S3 as latest_model.pkl for inference script
         with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tf:
