@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Ali/DataScience_Projects/MLOps-FinanceAssistant/mlruns/708024358232927332/0b966b452aac403c835a605772f41ade/artifacts
+end_time: 1761639790194
+entry_point_name: ''
+experiment_id: '708024358232927332'
+lifecycle_stage: active
+run_id: 0b966b452aac403c835a605772f41ade
+run_name: fortunate-panda-552
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1761639710723
+status: 3
+tags: []
+user_id: Ali
