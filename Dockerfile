@@ -20,7 +20,7 @@ FROM base AS dev
 # keep code inside the image so it runs even without bind-mounts
 EXPOSE 8000
 # hot reload in dev
-CMD ["uvicorn", "api:app", "--host","0.0.0.0","--port","8000","--reload"]
+CMD ["uvicorn", "src.api:app", "--host","0.0.0.0","--port","8000","--reload"]
 
 # ================================
 # PROD
@@ -38,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
 CMD curl -f http://localhost:8000/health || exit 1
 
 # gunicorn + uvicorn worker
-CMD ["gunicorn","-k","uvicorn.workers.UvicornWorker","-w","2","--bind","0.0.0.0:8000","api:app"]
+CMD ["gunicorn","-k","uvicorn.workers.UvicornWorker","-w","2","--bind","0.0.0.0:8000","src.api:app"]
