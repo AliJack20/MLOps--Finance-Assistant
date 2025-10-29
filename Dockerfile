@@ -1,26 +1,41 @@
-# 1️⃣ DEV STAGE
-# =========================================
-FROM python:3.11-slim AS dev
+# ================================
+# Base (common bits)
+# ================================
+FROM python:3.11-slim AS base
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY  requirements.txt .
+
+# healthcheck needs curl
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Expose FastAPI port
+
+# ================================
+# DEV
+# ================================
+FROM base AS dev
+# keep code inside the image so it runs even without bind-mounts
 EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# hot reload in dev
+CMD ["uvicorn", "api:app", "--host","0.0.0.0","--port","8000","--reload"]
 
-# 1️⃣ PROD STAGE
-# =========================================
-FROM python:3.11-slim AS PROD
-WORKDIR /app
-COPY --from=dev /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=dev /usr/local/bin/gunicorn /usr/local/bin/gunicorn
+# ================================
+# PROD
+# ================================
+FROM base AS prod
+COPY . .
 
-COPY app/ .
-
-RUN useradd --system --no-create-home --shell /usr/sbin/nologin appuser
+# non-root
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin appuser \
+ && chown -R appuser /app
 USER appuser
+
 EXPOSE 8000
-# Healthcheck (calls FastAPI /health endpoint)
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker","--bind", "0.0.0.0:8000", "main:app"]
+CMD curl -f http://localhost:8000/health || exit 1
+
+# gunicorn + uvicorn worker
+CMD ["gunicorn","-k","uvicorn.workers.UvicornWorker","-w","2","--bind","0.0.0.0:8000","api:app"]
