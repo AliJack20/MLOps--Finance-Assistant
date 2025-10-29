@@ -1,0 +1,60 @@
+version: "3.9"
+services:
+  web-dev:
+    build:
+      context: .
+      target: dev
+    container_name: fastapi-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./code:/app        # mount local code for live editing
+    env_file:
+      - .env
+    environment:
+      - ENV=development
+    restart: unless-stopped
+
+  web-prod:
+    build:
+      context: .
+      target: prod
+    container_name: fastapi-prod
+    ports:
+      - "8001:8000"       # separate from dev
+    env_file:
+      - .env
+    environment:
+      - ENV=production
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus_monitoring
+    ports:
+      - '9000:9090'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+      
+    restart: always
+    depends_on:
+      - web-prod
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_dashboard
+    ports:
+      - '4200:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: always
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:
