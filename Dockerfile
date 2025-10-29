@@ -1,55 +1,30 @@
-# =========================================================
-# Stage 1: Builder - install dependencies cleanly
-# =========================================================
-FROM python:3.11-slim AS builder
-
-# Install system packages required for building dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential curl gcc git && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy dependency files
-COPY requirements.txt .
-
-# Install Python dependencies into a local directory
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir --prefix=/install -r requirements.txt
-
-
-# =========================================================
-# Stage 2: Runtime - lightweight image for running app
-# =========================================================
+# ==============================
+# Stage 1 — Base setup
+# ==============================
 FROM python:3.11-slim
 
-# Environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/home/appuser/.local/bin:$PATH"
+# Set working directory inside the container
+WORKDIR /app
 
-# Install minimal runtime deps (curl for healthchecks)
-RUN apt-get update && apt-get install -y curl && \
-    rm -rf /var/lib/apt/lists/*
+# Prevent Python from writing pyc files & enable unbuffered logging
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Create non-root user
-RUN useradd -m appuser
-USER appuser
-WORKDIR /home/appuser
+# Copy dependency file first for caching
+COPY requirements.txt .
 
-# Copy installed dependencies from builder
-COPY --from=builder /install /usr/local
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy project source code
-COPY --chown=appuser:appuser src/ src/
-COPY --chown=appuser:appuser .env ./
-COPY --chown=appuser:appuser README.md ./
+# Copy the rest of the project
+COPY . .
 
 # Expose FastAPI port
 EXPOSE 8000
 
-# Healthcheck endpoint for CI/CD
-HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
+# Create a non-root user for better security
+RUN useradd -m appuser
+USER appuser
 
-# Start the API
-CMD ["python", "src/api.py"]
+# Default command — start FastAPI inference API
+CMD ["uvicorn", "src.inference:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,52 +1,25 @@
 version: "3.9"
 
 services:
-  app:
+  inference_api:
     build: .
-    container_name: mlops-app
+    container_name: inference_api
     ports:
       - "8000:8000"
     env_file:
       - .env
-    command: ["python", "src/api.py"]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    depends_on:
-      - mlflow
+    command: uvicorn src.inference:app --host 0.0.0.0 --port 8000
+    restart: always
 
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.14.0
-    container_name: mlflow
-    ports:
-      - "5000:5000"
-    environment:
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      MLFLOW_S3_ENDPOINT_URL: https://s3.${AWS_REGION}.amazonaws.com
-      BACKEND_STORE_URI: sqlite:///mlflow.db
-      ARTIFACT_ROOT: s3://${S3_BUCKET}/mlflow/
-    command: >
-      mlflow server
-      --backend-store-uri ${BACKEND_STORE_URI:-sqlite:///mlflow.db}
-      --default-artifact-root ${ARTIFACT_ROOT}
-      --host 0.0.0.0
-      --port 5000
-    volumes:
-      - ./mlruns:/mlruns
-
-  # Optional: Prometheus for monitoring
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
-    ports:
-      - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    restart: always
 
-  # Optional: Grafana for dashboards
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -54,3 +27,19 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+    restart: always
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./monitoring/grafana:/var/lib/grafana
+
+  evidently:
+    build: .
+    container_name: evidently_monitor
+    command: python monitoring/evidently_monitor.py
+    env_file:
+      - .env
+    depends_on:
+      - inference_api
+    restart: unless-stopped

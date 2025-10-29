@@ -1,18 +1,7 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-  external_labels:
-    cluster: 'mlops-project'
-    environment: 'development'
+  scrape_interval: 10s
 
-# Alertmanager configuration (optional)
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets: []
-
-# Load rules once and periodically evaluate them
-rule_files:
-  # - "alerts.yml"
-
-# Scrape configurations
+scrape_configs:
+  - job_name: "inference_api"
+    static_configs:
+      - targets: ["inference_api:8000"]
