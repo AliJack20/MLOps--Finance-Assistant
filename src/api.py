@@ -9,9 +9,11 @@ model = load_model()
 
 instrumentator = Instrumentator().instrument(app)
 
+
 @app.on_event("startup")
 async def _startup():
     instrumentator.expose(app)
+
 
 @app.get("/health")
 def health():
