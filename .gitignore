@@ -1,3 +1,4 @@
 .env
 data/
 mlruns/708024358232927332
+monitoring/grafana/

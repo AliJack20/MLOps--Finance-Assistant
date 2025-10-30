@@ -8,8 +8,10 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    command: uvicorn src.inference:app --host 0.0.0.0 --port 8000
+    command: uvicorn src.api:app --host 0.0.0.0 --port 8000 
     restart: always
+    networks:
+      - mlops-network
 
   prometheus:
     image: prom/prometheus:latest
@@ -19,6 +21,8 @@ services:
     ports:
       - "9090:9090"
     restart: always
+    networks:
+      - mlops-network
 
   grafana:
     image: grafana/grafana:latest
@@ -33,6 +37,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./monitoring/grafana:/var/lib/grafana
+    networks:
+      - mlops-network
 
   evidently:
     build: .
@@ -43,3 +49,9 @@ services:
     depends_on:
       - inference_api
     restart: unless-stopped
+    networks:
+      - mlops-network 
+
+networks:
+  mlops-network: # <-- SIMPLIFIED
+    driver: bridge # <-- SIMPLIFIED
