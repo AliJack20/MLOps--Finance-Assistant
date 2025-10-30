@@ -16,4 +16,6 @@ python-dotenv
 fastapi
 uvicorn
 prometheus-client
+black
+ruff
 -e .
