@@ -132,9 +132,9 @@ def main():
     logger.info("Training run finished. MLflow run info available.")
 
     # DATA DRIFT evidently
-    train_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\train.csv"
-    test_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\test.csv"
-    generate_data_drift_report(train_path, test_path, "data_drift_report.html")
+    #train_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\train.csv"
+    #test_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\test.csv"
+    #generate_data_drift_report(train_path, test_path, "data_drift_report.html")
 
 
 if __name__ == "__main__":

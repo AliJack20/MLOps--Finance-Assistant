@@ -38,6 +38,10 @@ def load_csv(path: str) -> pd.DataFrame:
 
 def drop_na(df: pd.DataFrame) -> pd.DataFrame:
     """Drop rows with NA values (same as notebook)."""
+    target_col = 'price_doc'  # Replace with actual target column name
+    # Keep first 4 columns plus target
+    cols_to_keep = df.columns[:4].tolist() + [target_col]
+    df = df[cols_to_keep]
     return df.dropna(axis=0)
 
 
