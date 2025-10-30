@@ -19,3 +19,5 @@ prometheus-client
 black
 ruff
 prometheus-fastapi-instrumentator
+evidently
+-e .
