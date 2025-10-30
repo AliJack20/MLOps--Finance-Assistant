@@ -32,17 +32,22 @@ AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 # Prometheus metrics
 # ----------------------------
 REQUEST_COUNT = Counter("inference_requests_total", "Total inference requests")
-RESPONSE_LATENCY = Histogram("inference_latency_seconds", "Inference latency in seconds")
+RESPONSE_LATENCY = Histogram(
+    "inference_latency_seconds", "Inference latency in seconds"
+)
 
 # ----------------------------
 # Initialize FastAPI app
 # ----------------------------
 app = FastAPI(title="Finance Assistant Inference API", version="1.0.0")
 
+
 # ----------------------------
 # Helper: download model from S3
 # ----------------------------
-def download_model_from_s3(bucket: str, key: str, local_path: str = "models/latest_model.pkl"):
+def download_model_from_s3(
+    bucket: str, key: str, local_path: str = "models/latest_model.pkl"
+):
     """Download the trained model from S3 to local storage."""
     s3 = boto3.client(
         "s3",
@@ -56,6 +61,7 @@ def download_model_from_s3(bucket: str, key: str, local_path: str = "models/late
     logger.info(f"Model downloaded to {local_path}")
     return local_path
 
+
 # ----------------------------
 # Load model at startup
 # ----------------------------
@@ -65,6 +71,7 @@ def load_model():
     model_path = download_model_from_s3(S3_BUCKET, S3_MODEL_KEY)
     model = joblib.load(model_path)
     logger.info("Model loaded successfully.")
+
 
 # ----------------------------
 # Middleware for Prometheus metrics
@@ -76,6 +83,7 @@ async def prometheus_middleware(request: Request, call_next):
         response = await call_next(request)
     return response
 
+
 # ----------------------------
 # Routes
 # ----------------------------
@@ -83,6 +91,7 @@ async def prometheus_middleware(request: Request, call_next):
 def home():
     """Health check endpoint."""
     return {"status": "API running", "model_key": S3_MODEL_KEY, "bucket": S3_BUCKET}
+
 
 @app.post("/predict")
 async def predict(data: dict):
@@ -94,6 +103,7 @@ async def predict(data: dict):
     except Exception as e:
         logger.exception("Prediction failed")
         return {"error": str(e)}
+
 
 @app.get("/metrics")
 def metrics():

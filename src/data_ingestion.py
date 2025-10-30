@@ -50,7 +50,9 @@ def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def encode_labels(df: pd.DataFrame, label_cols: List[str] = LABEL_COLUMNS) -> pd.DataFrame:
+def encode_labels(
+    df: pd.DataFrame, label_cols: List[str] = LABEL_COLUMNS
+) -> pd.DataFrame:
     """Label-encode known categorical columns if present."""
     for col in label_cols:
         if col in df.columns:
@@ -59,7 +61,9 @@ def encode_labels(df: pd.DataFrame, label_cols: List[str] = LABEL_COLUMNS) -> pd
     return df
 
 
-def map_booleans(df: pd.DataFrame, bool_cols: List[str] = BOOLEAN_COLUMNS) -> pd.DataFrame:
+def map_booleans(
+    df: pd.DataFrame, bool_cols: List[str] = BOOLEAN_COLUMNS
+) -> pd.DataFrame:
     """Map yes/no columns to 1/0 where present."""
     for col in bool_cols:
         if col in df.columns:
@@ -67,7 +71,9 @@ def map_booleans(df: pd.DataFrame, bool_cols: List[str] = BOOLEAN_COLUMNS) -> pd
     return df
 
 
-def prepare_features_target(df: pd.DataFrame, target_col: str = "price_doc") -> Tuple[pd.DataFrame, pd.Series]:
+def prepare_features_target(
+    df: pd.DataFrame, target_col: str = "price_doc"
+) -> Tuple[pd.DataFrame, pd.Series]:
     """
     Split into features X and target y.
     Uses the notebook's convention: target column 'price_doc'.
@@ -81,7 +87,9 @@ def prepare_features_target(df: pd.DataFrame, target_col: str = "price_doc") -> 
     return X, y
 
 
-def full_pipeline_from_csv(path: str, target_col: str = "price_doc") -> Tuple[pd.DataFrame, pd.Series]:
+def full_pipeline_from_csv(
+    path: str, target_col: str = "price_doc"
+) -> Tuple[pd.DataFrame, pd.Series]:
     """Complete ingestion -> cleaned (X, y) from CSV path."""
     df = load_csv(path)
     df = drop_na(df)
@@ -95,6 +103,7 @@ def full_pipeline_from_csv(path: str, target_col: str = "price_doc") -> Tuple[pd
 if __name__ == "__main__":
     # Quick local test (not executed in production)
     import os
+
     p = os.getenv("TRAIN_CSV", "data/train.csv")
     print("Loading:", p)
     X, y = full_pipeline_from_csv(p)
