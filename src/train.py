@@ -4,7 +4,7 @@ Train script:
 - Loads data via data_ingestion.full_pipeline_from_csv
 - Trains ExtraTreesRegressor (same hyperparams as your notebook)
 - Logs metrics and model to MLflow (configured to use MLFLOW_TRACKING_URI env var)
-- Uploads a copy of the fitted model as models/latest_model.pkl to S3 (S3_BUCKET env)
+- Uploads a copy of the fitted model as modeals/latest_model.pkl to S3 (S3_BUCKET env)
 """
 
 import os
