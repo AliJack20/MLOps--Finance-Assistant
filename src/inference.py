@@ -46,7 +46,7 @@ app = FastAPI(title="Finance Assistant Inference API", version="1.0.0")
 # Helper: download model from S3
 # ----------------------------
 def download_model_from_s3(
-    bucket: str, key: str, local_path: str = "models/latest_model.pkl"
+    bucket: str, key: str, local_path: str = "models/model_2.pkl"
 ):
     """Download the trained model from S3 to local storage."""
     s3 = boto3.client(

@@ -7,7 +7,8 @@ Train script:
 - Uploads a copy of the fitted model as models/latest_model.pkl to S3 (S3_BUCKET env)
 """
 
-import os, sys
+import os
+import sys
 import tempfile
 import joblib
 import mlflow
@@ -122,8 +123,8 @@ def main():
             local_model_path = tf.name
 
         # Upload to S3 (explicit)
-        # upload_file_to_s3(local_model_path, S3_BUCKET, S3_MODEL_KEY)
-        # logger.info("Model uploaded to s3://%s/%s", S3_BUCKET, S3_MODEL_KEY)
+        upload_file_to_s3(local_model_path, S3_BUCKET, S3_MODEL_KEY)
+        logger.info("Model uploaded to s3://%s/%s", S3_BUCKET, S3_MODEL_KEY)
 
         # Log S3 location as tag/artifact
         mlflow.set_tag("s3_model_path", f"s3://{S3_BUCKET}/{S3_MODEL_KEY}")
@@ -131,9 +132,9 @@ def main():
     logger.info("Training run finished. MLflow run info available.")
 
     # DATA DRIFT evidently
-    train_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\train.csv"
-    test_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\test.csv"
-    generate_data_drift_report(train_path, test_path, "data_drift_report.html")
+    #train_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\train.csv"
+    #test_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\test.csv"
+    #generate_data_drift_report(train_path, test_path, "data_drift_report.html")
 
 
 if __name__ == "__main__":
