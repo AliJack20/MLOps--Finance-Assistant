@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from src.inference import load_model, predict
 import pandas as pd
+import instrumentator
 
 app = FastAPI()
 
@@ -18,3 +19,7 @@ def pred(payload: dict):
     X = pd.DataFrame(payload["instances"])
     preds = predict(model, X)
     return {"predictions": preds}
+
+@app.post("/metrics")
+def metrics():
+    return generate_latest(instrumentator.metrics())

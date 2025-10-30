@@ -19,3 +19,4 @@ prometheus-client
 black
 ruff
 -e .
+prometheus-fastapi-instrumentator

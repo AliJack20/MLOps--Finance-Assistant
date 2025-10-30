@@ -11,6 +11,8 @@ services:
     command: uvicorn src.inference:app --host 0.0.0.0 --port 8000
     restart: always
 
+# add the new prometheus and grafana services. Don't forget to also add the networks block at the bottom so all three containers (app, prometheus, grafana) can communicate.
+
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -19,6 +21,8 @@ services:
     ports:
       - "9090:9090"
     restart: always
+    networks:
+      - mlops-network
 
   grafana:
     image: grafana/grafana:latest
@@ -33,7 +37,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./monitoring/grafana:/var/lib/grafana
-
+    networks:
+      - mlops-network
   evidently:
     build: .
     container_name: evidently_monitor
@@ -43,3 +48,19 @@ services:
     depends_on:
       - inference_api
     restart: unless-stopped
+    networks:
+      - mlops-network 
+    # environment:
+    #   - INFERENCE_API_URL=http://inference_api:8000
+    #   - PROMETHEUS_URL=http://prometheus:9090
+    #   - GRAFANA_URL=http://grafana:3000
+    #   - EVIDENTLY_URL=http://evidently_monitor:8000
+    #   - EVIDENTLY_API_KEY=evidently_api_key
+    #   - EVIDENTLY_API_SECRET=evidently_api_secret
+    #   - EVIDENTLY_API_URL=http://evidently_monito
+    #   - EVIDENTLY_API_URL=http://evidently_monitor:8000
+
+networks:
+  default:
+    external:
+      name: mlops-network
