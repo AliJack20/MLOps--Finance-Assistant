@@ -1,12 +1,17 @@
 from fastapi import FastAPI
 from src.inference import load_model, predict
 import pandas as pd
-import instrumentator
+from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI()
 
 model = load_model()
 
+instrumentator = Instrumentator().instrument(app)
+
+@app.on_event("startup")
+async def _startup():
+    instrumentator.expose(app)
 
 @app.get("/health")
 def health():
@@ -19,7 +24,3 @@ def pred(payload: dict):
     X = pd.DataFrame(payload["instances"])
     preds = predict(model, X)
     return {"predictions": preds}
-
-@app.post("/metrics")
-def metrics():
-    return generate_latest(instrumentator.metrics())
