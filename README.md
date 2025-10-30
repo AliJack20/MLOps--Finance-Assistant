@@ -6,31 +6,8 @@ Operational MLOps pipeline for financial predictions with FastAPI serving, S3-ba
 
 🏗️ Architecture Diagram
 
-```mermaid
-flowchart LR
-  subgraph Data
-    A[Raw Data] -->|ingest| B[S3 Bucket]
-  end
-
-  subgraph Training
-    C[Train Pipeline\nsrc/train.py] --> D[Model Artifact\nmodel.pkl]
-  end
-
-  B --> C
-  D --> E[Model Storage\nS3]
-
-  subgraph Serving
-    F[Inference API\nFastAPI uvicorn\nsrc/api.py] -->|/predict| H[Clients]
-    F -->|/metrics| I[Prometheus]
-  end
-
-  E --> F
-
-  subgraph Monitoring
-    I[Prometheus] --> J[Grafana Dashboards]
-    F --> K[Evidently (optional)]
-  end
-```
+![Architecture Diagram](images/architecture.jpg)
+![Program Flow Diagram](images/programFlow.png)
 
 ⚡ Quick Start
 
