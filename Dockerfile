@@ -1,55 +1,41 @@
-# =========================================================
-# Stage 1: Builder - install dependencies cleanly
-# =========================================================
-FROM python:3.11-slim AS builder
-
-# Install system packages required for building dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential curl gcc git && \
-    rm -rf /var/lib/apt/lists/*
-
+# ================================
+# Base (common bits)
+# ================================
+FROM python:3.11-slim AS base
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# Copy dependency files
+# healthcheck needs curl
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies into a local directory
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir --prefix=/install -r requirements.txt
-
-
-# =========================================================
-# Stage 2: Runtime - lightweight image for running app
-# =========================================================
-FROM python:3.11-slim
-
-# Environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/home/appuser/.local/bin:$PATH"
-
-# Install minimal runtime deps (curl for healthchecks)
-RUN apt-get update && apt-get install -y curl && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create non-root user
-RUN useradd -m appuser
-USER appuser
-WORKDIR /home/appuser
-
-# Copy installed dependencies from builder
-COPY --from=builder /install /usr/local
-
-# Copy project source code
-COPY --chown=appuser:appuser src/ src/
-COPY --chown=appuser:appuser .env ./
-COPY --chown=appuser:appuser README.md ./
-
-# Expose FastAPI port
+# ================================
+# DEV
+# ================================
+FROM base AS dev
+# keep code inside the image so it runs even without bind-mounts
 EXPOSE 8000
+# hot reload in dev
+CMD ["uvicorn", "src.api:app", "--host","0.0.0.0","--port","8000","--reload"]
 
-# Healthcheck endpoint for CI/CD
-HEALTHCHECK CMD curl --fail http://localhost:8000/health || exit 1
+# ================================
+# PROD
+# ================================
+FROM base AS prod
+COPY . .
 
-# Start the API
-CMD ["python", "src/api.py"]
+# non-root
+RUN useradd --system --no-create-home --shell /usr/sbin/nologin appuser \
+ && chown -R appuser /app
+USER appuser
+
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+CMD curl -f http://localhost:8000/health || exit 1
+
+# gunicorn + uvicorn worker
+CMD ["gunicorn","-k","uvicorn.workers.UvicornWorker","-w","2","--bind","0.0.0.0:8000","src.api:app"]

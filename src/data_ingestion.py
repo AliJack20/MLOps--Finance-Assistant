@@ -6,7 +6,6 @@ Designed to mirror the preprocessing in ExtraTrees_Regressor.ipynb.
 
 import os
 import pandas as pd
-import numpy as np
 from sklearn.preprocessing import LabelEncoder
 from typing import Tuple, List
 
@@ -39,6 +38,10 @@ def load_csv(path: str) -> pd.DataFrame:
 
 def drop_na(df: pd.DataFrame) -> pd.DataFrame:
     """Drop rows with NA values (same as notebook)."""
+    target_col = 'price_doc'  # Replace with actual target column name
+    # Keep first 4 columns plus target
+    cols_to_keep = df.columns[:4].tolist() + [target_col]
+    df = df[cols_to_keep]
     return df.dropna(axis=0)
 
 
@@ -50,7 +53,9 @@ def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def encode_labels(df: pd.DataFrame, label_cols: List[str] = LABEL_COLUMNS) -> pd.DataFrame:
+def encode_labels(
+    df: pd.DataFrame, label_cols: List[str] = LABEL_COLUMNS
+) -> pd.DataFrame:
     """Label-encode known categorical columns if present."""
     for col in label_cols:
         if col in df.columns:
@@ -59,7 +64,9 @@ def encode_labels(df: pd.DataFrame, label_cols: List[str] = LABEL_COLUMNS) -> pd
     return df
 
 
-def map_booleans(df: pd.DataFrame, bool_cols: List[str] = BOOLEAN_COLUMNS) -> pd.DataFrame:
+def map_booleans(
+    df: pd.DataFrame, bool_cols: List[str] = BOOLEAN_COLUMNS
+) -> pd.DataFrame:
     """Map yes/no columns to 1/0 where present."""
     for col in bool_cols:
         if col in df.columns:
@@ -67,7 +74,9 @@ def map_booleans(df: pd.DataFrame, bool_cols: List[str] = BOOLEAN_COLUMNS) -> pd
     return df
 
 
-def prepare_features_target(df: pd.DataFrame, target_col: str = "price_doc") -> Tuple[pd.DataFrame, pd.Series]:
+def prepare_features_target(
+    df: pd.DataFrame, target_col: str = "price_doc"
+) -> Tuple[pd.DataFrame, pd.Series]:
     """
     Split into features X and target y.
     Uses the notebook's convention: target column 'price_doc'.
@@ -81,7 +90,9 @@ def prepare_features_target(df: pd.DataFrame, target_col: str = "price_doc") -> 
     return X, y
 
 
-def full_pipeline_from_csv(path: str, target_col: str = "price_doc") -> Tuple[pd.DataFrame, pd.Series]:
+def full_pipeline_from_csv(
+    path: str, target_col: str = "price_doc"
+) -> Tuple[pd.DataFrame, pd.Series]:
     """Complete ingestion -> cleaned (X, y) from CSV path."""
     df = load_csv(path)
     df = drop_na(df)
@@ -95,6 +106,7 @@ def full_pipeline_from_csv(path: str, target_col: str = "price_doc") -> Tuple[pd
 if __name__ == "__main__":
     # Quick local test (not executed in production)
     import os
+
     p = os.getenv("TRAIN_CSV", "data/train.csv")
     print("Loading:", p)
     X, y = full_pipeline_from_csv(p)

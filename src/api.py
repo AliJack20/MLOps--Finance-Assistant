@@ -6,8 +6,11 @@ app = FastAPI()
 
 model = load_model()
 
+
 @app.get("/health")
-def health(): return {"status": "healthy"}
+def health():
+    return {"status": "healthy"}
+
 
 @app.post("/predict")
 def pred(payload: dict):

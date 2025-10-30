@@ -29,10 +29,19 @@ jobs:
       - name: Install linting tools
         run: pip install black ruff
 
-      - name: Run lint checks
+      - name: Run black formatter
+        run: black src
+
+      - name: Run ruff checks
+        run: ruff check src
+
+      - name: Check for changes
         run: |
-          black --check src
-          ruff src
+          if [[ `git status --porcelain` ]]; then
+            echo "❌ Code formatting issues found. Run 'black src' locally."
+            git diff
+            exit 1
+          fi
 
   # =====================================================
   # 2️⃣ Testing
@@ -102,6 +111,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          IMAGE_NAME: myapp
           docker build -t $ECR_REGISTRY/${{ env.IMAGE_NAME }}:$IMAGE_TAG .
           docker push $ECR_REGISTRY/${{ env.IMAGE_NAME }}:$IMAGE_TAG
           echo "✅ Image pushed to ECR: $ECR_REGISTRY/${{ env.IMAGE_NAME }}:$IMAGE_TAG"

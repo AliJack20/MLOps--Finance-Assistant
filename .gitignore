@@ -1,6 +1,6 @@
 .env
 data/
-mlruns/708024358232927332/models/
+mlruns/708024358232927332
 myenv
 data_drift_report.html
 .gitignore
