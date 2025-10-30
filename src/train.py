@@ -7,7 +7,8 @@ Train script:
 - Uploads a copy of the fitted model as models/latest_model.pkl to S3 (S3_BUCKET env)
 """
 
-import os, sys
+import os
+import sys
 import tempfile
 import joblib
 import mlflow
@@ -119,7 +120,7 @@ def main():
         # Also save a copy to a temp file and upload to S3 as latest_model.pkl for inference script
         with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tf:
             joblib.dump(model, tf.name)
-            local_model_path = tf.name
+            # local_model_path = tf.name
 
         # Upload to S3 (explicit)
         # upload_file_to_s3(local_model_path, S3_BUCKET, S3_MODEL_KEY)
