@@ -18,7 +18,10 @@ cd MLOps--Finance-Assistant
 make dev
 ```
 
-- Create a `.env` file (for S3 access during serving and MLflow if used):
+- Add the .env and MLOps Pair.prem files to root directory (for S3 access during serving and MLflow if used):
+
+Run mlflow ui --backend-store-uri file:./mlruns to start mlflow locally
+Run python src/train.py for the entire flow including pulling data from S3, training model, getting metrics, storing metric in mlfow, storing model in S3, starting EC2 and Docker, pulling model from S3 for prediction and inference/monitoring(Evidently,Grafana, Prometheus).
 
 ```bash
 AWS_ACCESS_KEY_ID=YOUR_KEY

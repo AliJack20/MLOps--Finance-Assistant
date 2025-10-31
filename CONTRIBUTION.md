@@ -13,7 +13,7 @@ Member → Tasks Mapping
 
 | Member          | Responsibilities                                   |
 |-----------------|------------------------------------------------------|
-| Ali Siddiqui    | Model development and AWS (S3/EC2/ECR) integration  |
+| Ali Siddiqui    | Model development, MLflow and AWS (S3/EC2/ECR) Setup and Integration  |
 | Hamza Moosani   | API development (FastAPI) and Dockerization         |
 | Ikhlas Khan     | Canary deployment and Evidently AI integration      |
 | Shazain         | Prometheus, Grafana, and AWS monitoring setup       |
