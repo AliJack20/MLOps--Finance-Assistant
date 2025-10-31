@@ -1,10 +1,16 @@
-name: MLOPS CICD - Syntax + Health Check
+name: MLOPS CI - Full Pipeline
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  TAG: ${{ github.sha }}
+  CANARY_PORT: 9000
 
 jobs:
   # =====================================================
@@ -49,6 +55,8 @@ jobs:
             fi
             sleep 1
           done
+      - name: Health check
+        run: curl -sS http://127.0.0.1:8000/health
 
       - name: Run health check
         run: curl -sS http://127.0.0.1:8000/health
