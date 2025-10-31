@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Ali/DataScience_Projects/MLOps-FinanceAssistant/mlruns/708024358232927332/a0ccdc3140034cf6a877321e1ef0dfde/artifacts
+end_time: 1761639107946
+entry_point_name: ''
+experiment_id: '708024358232927332'
+lifecycle_stage: active
+run_id: a0ccdc3140034cf6a877321e1ef0dfde
+run_name: upbeat-ant-333
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1761638786522
+status: 4
+tags: []
+user_id: Ali

@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Ali/DataScience_Projects/MLOps-FinanceAssistant/mlruns/708024358232927332/c6df1579948446249a8804095498fc09/artifacts
+end_time: 1761639396624
+entry_point_name: ''
+experiment_id: '708024358232927332'
+lifecycle_stage: active
+run_id: c6df1579948446249a8804095498fc09
+run_name: upbeat-stoat-572
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1761639324816
+status: 4
+tags: []
+user_id: Ali

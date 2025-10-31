@@ -1,0 +1,132 @@
+name: MLOPS CI - Full Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: alijack20/mlops-finance-assistant
+  TAG: ${{ github.sha }}
+  CANARY_PORT: 9000
+
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+    env:
+      CI_MODE: "1"     # ensures dummy model loads (no S3)
+      ENV: "ci"
+
+    steps:
+      # -------------------------
+      # 1️⃣ Checkout code
+      # -------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -------------------------
+      # 2️⃣ Set up Python
+      # -------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # -------------------------
+      # 3️⃣ Install dependencies
+      # -------------------------
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black ruff
+
+      # -------------------------
+      # 4️⃣ Syntax + Lint checks
+      # -------------------------
+      - name: Run ruff lint
+        run: ruff check src
+      - name: Run black format check
+        run: black --check src
+
+      # -------------------------
+      # 5️⃣ Build & Test app locally
+      # -------------------------
+      - name: Start FastAPI app (local test)
+        run: |
+          nohup python -m uvicorn src.api:app --host 0.0.0.0 --port 8000 --log-level info &
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8000/health >/dev/null; then
+              echo "✅ API is up"
+              break
+            fi
+            sleep 1
+          done
+      - name: Health check
+        run: curl -sS http://127.0.0.1:8000/health
+
+      # -------------------------
+      # 6️⃣ Docker Build & Push to GHCR
+      # -------------------------
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          echo "🧱 Building image: $REGISTRY/$IMAGE_NAME_LOWER:$TAG"
+          docker build -t $REGISTRY/$IMAGE_NAME_LOWER:$TAG .
+          docker push $REGISTRY/$IMAGE_NAME_LOWER:$TAG
+
+
+      # -------------------------
+      # 7️⃣ Canary Deploy (temporary container)
+      # -------------------------
+      - name: Run canary container
+        run: |
+          docker run -d -p 9000:8000 \
+            --name canary \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+
+
+      # -------------------------
+      # 8️⃣ Acceptance Tests
+      # -------------------------
+      - name: Acceptance tests (canary)
+        run: |
+          echo "⏳ Waiting for canary container to boot on port $CANARY_PORT..."
+          for i in {1..60}; do
+            if curl -sf http://127.0.0.1:$CANARY_PORT/health >/dev/null; then
+              echo "✅ Canary API is up!"
+              break
+            fi
+            sleep 2
+          done
+      
+          echo "🚀 Running endpoint checks..."
+          for endpoint in /health /predict /docs; do
+            echo "🔍 Checking endpoint: $endpoint"
+            STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://127.0.0.1:$CANARY_PORT$endpoint)
+            if [ "$STATUS" -ne 200 ]; then
+              echo "❌ Canary failed at $endpoint (status $STATUS)"
+              docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
+              exit 1
+            fi
+          done
+          echo "✅ All endpoints passed acceptance tests!"
+
+
+      # -------------------------
+      # 9️⃣ Cleanup
+      # -------------------------
+      - name: Stop and remove canary container
+        if: always()
+        run: |
+          docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
+          docker system prune -af
