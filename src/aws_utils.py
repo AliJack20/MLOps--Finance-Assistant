@@ -5,28 +5,31 @@ import paramiko
 
 logging.basicConfig(level=logging.INFO)
 
+
 def start_ec2_instance(instance_id: str, region) -> str:
     """Start EC2 instance and return its public IP when ready."""
-    ec2 = boto3.client('ec2',region_name=region)
-    
+    ec2 = boto3.client("ec2", region_name=region)
+
     logging.info(f"Starting EC2 instance: {instance_id}")
     ec2.start_instances(InstanceIds=[instance_id])
 
     # Wait until running
     logging.info("Waiting for instance to be running...")
-    waiter = ec2.get_waiter('instance_running')
+    waiter = ec2.get_waiter("instance_running")
     waiter.wait(InstanceIds=[instance_id])
 
     # Get public IP
-    reservations = ec2.describe_instances(InstanceIds=[instance_id])['Reservations']
-    instance = reservations[0]['Instances'][0]
-    public_ip = instance.get('PublicIpAddress')
+    reservations = ec2.describe_instances(InstanceIds=[instance_id])["Reservations"]
+    instance = reservations[0]["Instances"][0]
+    public_ip = instance.get("PublicIpAddress")
 
     logging.info(f"Instance is running at: {public_ip}")
     return public_ip
 
 
-def stop_ec2_instance(instance_id: str, region: str, key_path: str, username="ec2-user"):
+def stop_ec2_instance(
+    instance_id: str, region: str, key_path: str, username="ec2-user"
+):
     """Stop Docker containers and then stop EC2 instance."""
     ec2 = boto3.client("ec2", region_name=region)
 
@@ -102,7 +105,6 @@ def run_docker_commands_on_ec2(instance_id, region, key_path, username="ec2-user
     err = stderr.read().decode()
     if err:
         logging.error(err)
-
 
     ssh.close()
     logging.info("Docker build and run completed.")

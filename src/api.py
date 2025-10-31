@@ -5,6 +5,7 @@ import pandas as pd
 from src.inference import load_model, predict  # use from src.inference
 import logging
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,11 +16,12 @@ app = FastAPI(title="Finance Assistant API", version="1.0")
 # Initialize Prometheus
 instrumentator = Instrumentator().instrument(app)
 
+
 @app.on_event("startup")
 async def startup_event():
     """Load model once and expose metrics"""
     global model
-    model = load_model()           # load from S3 inside inference.py
+    model = load_model()  # load from S3 inside inference.py
     instrumentator.expose(app)
     logger.info("✅ Model loaded and metrics endpoint exposed")
 
@@ -47,15 +49,12 @@ async def predict_api(payload: dict):
 
         # Predict
         preds = model.predict(df)
-        return {
-            "input": payload,
-            "prediction": float(preds[0])
-        }
+        return {"input": payload, "prediction": float(preds[0])}
 
     except Exception as e:
         logger.exception("Prediction failed")
         return {"error": str(e)}
-    
+
     """
     Accepts raw JSON input (flat dict) → runs prediction.
     Example input:
@@ -75,8 +74,9 @@ async def predict_api(payload: dict):
     except Exception as e:
         logger.exception("Prediction failed")
         return {"error": str(e)}
+
+
 @app.get("/metrics")
 def metrics():
     """Expose Prometheus metrics endpoint."""
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-    

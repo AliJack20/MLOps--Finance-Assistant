@@ -41,11 +41,13 @@ LABEL_COLUMNS = ["product_type", "ecology"]
 S3_BUCKET = os.getenv("S3_BUCKET")
 S3_TRAIN_KEY = os.getenv("S3_TRAIN_KEY")
 
+
 def load_csv_from_s3(bucket: str, key: str) -> pd.DataFrame:
     """Load CSV from S3 into a pandas DataFrame."""
     s3 = boto3.client("s3")
     response = s3.get_object(Bucket=bucket, Key=key)
     return pd.read_csv(io.BytesIO(response["Body"].read()))
+
 
 def load_csv(path: str) -> pd.DataFrame:
     """
@@ -71,7 +73,7 @@ def load_csv(path: str) -> pd.DataFrame:
 
 def drop_na(df: pd.DataFrame) -> pd.DataFrame:
     """Drop rows with NA values (same as notebook)."""
-    target_col = 'price_doc'  # Replace with actual target column name
+    target_col = "price_doc"  # Replace with actual target column name
     # Keep first 4 columns plus target
     cols_to_keep = df.columns[:4].tolist() + [target_col]
     df = df[cols_to_keep]
