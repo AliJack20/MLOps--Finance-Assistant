@@ -35,7 +35,7 @@ def health():
 @app.post("/predict")
 async def predict_api(payload: dict):
     try:
-        # Convert JSON → DataFrame
+        # Convert JSON → DataFrames
         df = pd.DataFrame([payload])
 
         # --- FIX categorical mapping ---
