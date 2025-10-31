@@ -1,4 +1,4 @@
-name: MLOPS CICD - Syntax + Health Check
+name: MLOPS CICD - Full Pipeline
 
 on:
   push:
@@ -6,16 +6,22 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  TAG: ${{ github.sha }}
+  CANARY_PORT: 9000
+
 jobs:
-  build-and-check:
+  build-test-deploy:
     runs-on: ubuntu-latest
     env:
-      CI_MODE: "1"     # 👈 ensures dummy model loads (no S3)
+      CI_MODE: "1"     # ensures dummy model loads (no S3)
       ENV: "ci"
 
     steps:
       # -------------------------
-      # 1️⃣ Get code
+      # 1️⃣ Checkout code
       # -------------------------
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,21 +44,19 @@ jobs:
           pip install black ruff
 
       # -------------------------
-      # 4️⃣ Syntax / Lint check
+      # 4️⃣ Syntax + Lint checks
       # -------------------------
       - name: Run ruff lint
         run: ruff check src
-
       - name: Run black format check
         run: black --check src
 
       # -------------------------
-      # 5️⃣ Boot API (background)
+      # 5️⃣ Build & Test app locally
       # -------------------------
-      - name: Start FastAPI app
+      - name: Start FastAPI app (local test)
         run: |
           nohup python -m uvicorn src.api:app --host 0.0.0.0 --port 8000 --log-level info &
-          # wait until it’s up (max 30s)
           for i in {1..30}; do
             if curl -sf http://127.0.0.1:8000/health >/dev/null; then
               echo "✅ API is up"
@@ -60,9 +64,55 @@ jobs:
             fi
             sleep 1
           done
+      - name: Health check
+        run: curl -sS http://127.0.0.1:8000/health
 
       # -------------------------
-      # 6️⃣ Health check
+      # 6️⃣ Docker Build & Push to GHCR
       # -------------------------
-      - name: Run health check
-        run: curl -sS http://127.0.0.1:8000/health
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:$TAG .
+          docker push $REGISTRY/$IMAGE_NAME:$TAG
+
+      # -------------------------
+      # 7️⃣ Canary Deploy (temporary container)
+      # -------------------------
+      - name: Canary deploy
+        run: |
+          docker run -d -p $CANARY_PORT:8000 -e CANARY=true \
+            $REGISTRY/$IMAGE_NAME:$TAG
+          echo "✅ Canary container started on port $CANARY_PORT"
+          sleep 10  # wait for boot
+
+      # -------------------------
+      # 8️⃣ Acceptance Tests
+      # -------------------------
+      - name: Run acceptance tests (golden set)
+        run: |
+          for endpoint in /health /predict /docs; do
+            echo "🔍 Checking endpoint: $endpoint"
+            STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://127.0.0.1:$CANARY_PORT$endpoint)
+            if [ "$STATUS" -ne 200 ]; then
+              echo "❌ Canary failed at $endpoint (status $STATUS)"
+              docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
+              exit 1
+            fi
+          done
+          echo "✅ All endpoints passed acceptance tests!"
+
+      # -------------------------
+      # 9️⃣ Cleanup
+      # -------------------------
+      - name: Stop and remove canary container
+        if: always()
+        run: |
+          docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
+          docker system prune -af
