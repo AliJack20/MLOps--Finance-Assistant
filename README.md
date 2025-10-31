@@ -35,4 +35,4 @@ flowchart LR
 ### Screenshot Proof
 *(Insert screenshots of your running EC2 instance and S3 bucket here.)*
 
-Need MLOps pair.pem key at root directory
+Need MLOps pair.pem key and .env at root directory
