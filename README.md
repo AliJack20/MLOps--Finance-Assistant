@@ -7,6 +7,7 @@ Operational MLOps pipeline for financial predictions with FastAPI serving, S3-ba
 🏗️ Architecture Diagram
 
 ![Program Flow Diagram](programFlow.png)
+![Architecture Overview](flow.png)
 
 ⚡ Quick Start
 
