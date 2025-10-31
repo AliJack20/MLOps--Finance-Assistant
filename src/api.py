@@ -1,10 +1,10 @@
 # src/api.py
-from fastapi import FastAPI, Request,Response
+from fastapi import FastAPI, Response
 from prometheus_fastapi_instrumentator import Instrumentator
 import pandas as pd
 from src.inference import load_model, predict  # use from src.inference
 import logging
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

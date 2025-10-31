@@ -22,7 +22,6 @@ from dotenv import load_dotenv
 import time
 
 from data_ingestion import full_pipeline_from_csv
-from data_ingestion import load_csv_from_s3
 from aws_utils import start_ec2_instance, stop_ec2_instance, run_docker_commands_on_ec2
 #from monitoring.evidently_dashboard import generate_data_drift_report
 
