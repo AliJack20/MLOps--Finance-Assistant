@@ -19,13 +19,14 @@ from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import root_mean_squared_error, r2_score
 from dotenv import load_dotenv
+import time
 
 from data_ingestion import full_pipeline_from_csv
 from data_ingestion import load_csv_from_s3
+from aws_utils import start_ec2_instance, stop_ec2_instance, run_docker_commands_on_ec2
+#from monitoring.evidently_dashboard import generate_data_drift_report
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from monitoring.evidently_dashboard import generate_data_drift_report
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ S3_TEST_KEY = os.getenv("S3_TEST_KEY")
 MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "mlops-demo")
 aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
 aws_secret_access = os.getenv("AWS_SECRET_ACCESS_KEY")
+API_INSTANCE_ID = os.getenv("API_INSTANCE_ID")
 region = os.getenv("AWS_REGION")
 
 
@@ -79,6 +81,7 @@ def upload_file_to_s3(local_path: str, bucket: str, key: str):
 
 
 def main():
+
     if not MLFLOW_TRACKING_URI:
         raise EnvironmentError(
             "Set MLFLOW_TRACKING_URI in environment (e.g. s3://bucket/mlflow/)"
@@ -135,10 +138,19 @@ def main():
 
     logger.info("Training run finished. MLflow run info available.")
 
+
     # DATA DRIFT evidently
-    train_df = load_csv_from_s3(S3_BUCKET, S3_TRAIN_KEY)
-    test_df  = load_csv_from_s3(S3_BUCKET, S3_TEST_KEY)
-    generate_data_drift_report(train_df, test_df, "monitoring\evidently_htmls\data_drift_report.html")
+    #train_df = load_csv_from_s3(S3_BUCKET, S3_TRAIN_KEY)
+    #test_df  = load_csv_from_s3(S3_BUCKET, S3_TEST_KEY)
+    #generate_data_drift_report(train_df, test_df, "monitoring\evidently_htmls\data_drift_report.html")
+
+    # Start EC2 instance and Docker that serves the API  
+    public_ip = start_ec2_instance(API_INSTANCE_ID,region)
+    run_docker_commands_on_ec2(API_INSTANCE_ID, region, "MLOps pair.pem")
+    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs") 
+    time.sleep(20)  #Runs for 10 Minutes
+    #Stop EC2 and docker
+    stop_ec2_instance(API_INSTANCE_ID,region, "MLOps pair.pem")
 
 
 if __name__ == "__main__":
