@@ -82,3 +82,6 @@ Notes:
   - Use Docker Desktop with WSL2 (Windows) or Docker Desktop (macOS).
   - Run `make dev` in a Python 3.11 environment, or use Dev Containers.
   - If `make` is unavailable on Windows, run the equivalent commands from the Makefile manually.
+
+
+NOTE: Need MLOps pair.pem key and .env at root directory
