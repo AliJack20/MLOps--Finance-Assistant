@@ -55,6 +55,7 @@ async def predict_api(payload: dict):
     except Exception as e:
         logger.exception("Prediction failed")
         return {"error": str(e)}
+    
     """
     Accepts raw JSON input (flat dict) → runs prediction.
     Example input:
