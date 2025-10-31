@@ -23,7 +23,7 @@ import time
 
 from data_ingestion import full_pipeline_from_csv
 from data_ingestion import load_csv_from_s3
-from aws_utils import start_ec2_instance, stop_ec2_instance
+from aws_utils import start_ec2_instance, stop_ec2_instance, run_docker_commands_on_ec2
 #from monitoring.evidently_dashboard import generate_data_drift_report
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -81,6 +81,7 @@ def upload_file_to_s3(local_path: str, bucket: str, key: str):
 
 
 def main():
+
     if not MLFLOW_TRACKING_URI:
         raise EnvironmentError(
             "Set MLFLOW_TRACKING_URI in environment (e.g. s3://bucket/mlflow/)"
@@ -137,17 +138,19 @@ def main():
 
     logger.info("Training run finished. MLflow run info available.")
 
-     # Start EC2 instance that serves the API  
-    public_ip = start_ec2_instance(API_INSTANCE_ID,region)
-    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs") 
-    time.sleep(600)  #Runs for 10 Minutes
-    stop_ec2_instance(API_INSTANCE_ID,region)
-
 
     # DATA DRIFT evidently
     #train_df = load_csv_from_s3(S3_BUCKET, S3_TRAIN_KEY)
     #test_df  = load_csv_from_s3(S3_BUCKET, S3_TEST_KEY)
     #generate_data_drift_report(train_df, test_df, "monitoring\evidently_htmls\data_drift_report.html")
+
+    # Start EC2 instance and Docker that serves the API  
+    public_ip = start_ec2_instance(API_INSTANCE_ID,region)
+    run_docker_commands_on_ec2(API_INSTANCE_ID, region, "MLOps pair.pem")
+    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs") 
+    time.sleep(20)  #Runs for 10 Minutes
+    #Stop EC2 and docker
+    stop_ec2_instance(API_INSTANCE_ID,region, "MLOps pair.pem")
 
 
 if __name__ == "__main__":
