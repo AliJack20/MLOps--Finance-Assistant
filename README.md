@@ -35,7 +35,7 @@ docker-compose up -d --build
 # API:        http://localhost:8000/docs
 # Metrics:    http://localhost:8000/metrics
 # Prometheus: http://localhost:9090
-# Grafana:    http://localhost:3000  (admin/admin)
+# Grafana:    http://localhost:3000  (admin/adminx)
 ```
 
 🛠️ Make Targets
