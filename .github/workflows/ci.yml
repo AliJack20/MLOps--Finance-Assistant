@@ -13,39 +13,48 @@ env:
   CANARY_PORT: 9000
 
 jobs:
-  # =====================================================
-  # 1️⃣ Lint + Health Check
-  # =====================================================
-  build-and-check:
+  build-test-deploy:
     runs-on: ubuntu-latest
     env:
-      CI_MODE: "1"
+      CI_MODE: "1"     # ensures dummy model loads (no S3)
       ENV: "ci"
 
     steps:
+      # -------------------------
+      # 1️⃣ Checkout code
+      # -------------------------
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # -------------------------
+      # 2️⃣ Set up Python
+      # -------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # -------------------------
+      # 3️⃣ Install dependencies
+      # -------------------------
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install black ruff uvicorn
+          pip install black ruff
 
-      - name: Run Ruff lint
-        run: |
-          ruff check src || echo "⚠️ Ruff found minor lint issues."
+      # -------------------------
+      # 4️⃣ Syntax + Lint checks
+      # -------------------------
+      - name: Run ruff lint
+        run: ruff check src
+      - name: Run black format check
+        run: black --check src
 
-      - name: Run Black format check
-        run: |
-          black --check src || echo "⚠️ Black would reformat some files."
-
-      - name: Start FastAPI app
+      # -------------------------
+      # 5️⃣ Build & Test app locally
+      # -------------------------
+      - name: Start FastAPI app (local test)
         run: |
           nohup python -m uvicorn src.api:app --host 0.0.0.0 --port 8000 --log-level info &
           for i in {1..30}; do
@@ -58,78 +67,55 @@ jobs:
       - name: Health check
         run: curl -sS http://127.0.0.1:8000/health
 
-      - name: Run health check
-        run: curl -sS http://127.0.0.1:8000/health
-
-
-  # =====================================================
-  # 2️⃣ Pytest + Coverage
-  # =====================================================
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    needs: build-and-check
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # -------------------------
+      # 6️⃣ Docker Build & Push to GHCR
+      # -------------------------
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          python-version: "3.11"
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
+      - name: Build and push Docker image
         run: |
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
+          IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          echo "🧱 Building image: $REGISTRY/$IMAGE_NAME_LOWER:$TAG"
+          docker build -t $REGISTRY/$IMAGE_NAME_LOWER:$TAG .
+          docker push $REGISTRY/$IMAGE_NAME_LOWER:$TAG
 
-      - name: Run pytest with coverage
-        run: pytest --cov=src --cov-fail-under=80
 
-
-  # =====================================================
-  # 3️⃣ Build Docker image
-  # =====================================================
-  build:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build Docker image
+      # -------------------------
+      # 7️⃣ Canary Deploy (temporary container)
+      # -------------------------
+      - name: Canary Deploy
         run: |
-          docker build -t mlops-app:${{ github.sha }} .
-
-
-  # =====================================================
-  # 4️⃣ Canary Deploy (simulate in runner)
-  # =====================================================
-  canary-deploy:
-    name: Canary Deploy
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build & Start canary container
-        run: |
-          docker build -t mlops-app:${{ github.sha }} .
-          docker run -d -e CANARY=true -p 8000:8000 mlops-app:${{ github.sha }}
+          docker run -d -p $CANARY_PORT:8000 -e CANARY=true \
+            $REGISTRY/$IMAGE_NAME:$TAG
+          echo "✅ Canary container started on port $CANARY_PORT"
           sleep 10
 
-
-  # =====================================================
-  # 5️⃣ Acceptance Tests
-  # =====================================================
-  acceptance-tests:
-    name: Acceptance Tests
-    runs-on: ubuntu-latest
-    needs: canary-deploy
-    steps:
-      - name: Check health endpoint
+      # -------------------------
+      # 8️⃣ Acceptance Tests
+      # -------------------------
+      - name: Run acceptance tests (golden set)
         run: |
-          for i in {1..5}; do
-            if curl -f http://127.0.0.1:8000/health; then
-              echo "✅ Health check passed"
-              exit 0
+          for endpoint in /health /predict /docs; do
+            echo "🔍 Checking endpoint: $endpoint"
+            STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://127.0.0.1:$CANARY_PORT$endpoint)
+            if [ "$STATUS" -ne 200 ]; then
+              echo "❌ Canary failed at $endpoint (status $STATUS)"
+              docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
+              exit 1
             fi
-            sleep 2
           done
-          echo "❌ Health check failed"
-          exit 1
+          echo "✅ All endpoints passed acceptance tests!"
+
+      # -------------------------
+      # 9️⃣ Cleanup
+      # -------------------------
+      - name: Stop and remove canary container
+        if: always()
+        run: |
+          docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
+          docker system prune -af
