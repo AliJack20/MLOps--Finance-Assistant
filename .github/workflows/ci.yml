@@ -88,12 +88,12 @@ jobs:
       # -------------------------
       # 7️⃣ Canary Deploy (temporary container)
       # -------------------------
-      - name: Canary Deploy
+      - name: Run canary container
         run: |
-          docker run -d -p $CANARY_PORT:8000 -e CANARY=true \
-            $REGISTRY/$IMAGE_NAME:$TAG
-          echo "✅ Canary container started on port $CANARY_PORT"
-          sleep 10
+          docker run -d -p 9000:8000 \
+            --name canary \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+
 
       # -------------------------
       # 8️⃣ Acceptance Tests
