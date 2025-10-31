@@ -1,4 +1,4 @@
-name: MLOPS CICD - Full Pipeline
+name: MLOPS CI - Full Pipeline
 
 on:
   push:
@@ -88,12 +88,12 @@ jobs:
       # -------------------------
       # 7️⃣ Canary Deploy (temporary container)
       # -------------------------
-      - name: Canary deploy
+      - name: Canary Deploy
         run: |
           docker run -d -p $CANARY_PORT:8000 -e CANARY=true \
             $REGISTRY/$IMAGE_NAME:$TAG
           echo "✅ Canary container started on port $CANARY_PORT"
-          sleep 10  # wait for boot
+          sleep 10
 
       # -------------------------
       # 8️⃣ Acceptance Tests
