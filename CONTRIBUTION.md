@@ -5,8 +5,8 @@ Team members and responsibilities for the MLOps — Finance Assistant project.
 Names and ERP IDs
 
 - Ali Siddiqui — 26902
-- Hamza Moosani — 
-- Ikhlas Khan — 
+- Hamza Moosani — 26945
+- Ikhlas Khan — 27096
 - Shazain — 27115
 
 Member → Tasks Mapping
@@ -16,7 +16,7 @@ Member → Tasks Mapping
 | Ali Siddiqui    | Model development, MLflow and AWS (S3/EC2/ECR) Setup and Integration  |
 | Hamza Moosani   | API development (FastAPI) and Dockerization         |
 | Ikhlas Khan     | Canary deployment and Evidently AI integration      |
-| Shazain         | Prometheus, Grafana, and AWS monitoring setup       |
+| Shazain         | Prometheus, Grafana, Documentation, AWS setup       |
 
 Branch-naming Convention
 
