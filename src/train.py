@@ -147,7 +147,7 @@ def main():
     public_ip = start_ec2_instance(API_INSTANCE_ID, region)
     run_docker_commands_on_ec2(API_INSTANCE_ID, region, "MLOps pair.pem")
     print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs")
-    time.sleep(20)  # Runs for 10 Minutes
+    time.sleep(600)  # Runs for 10 Minutes
     # Stop EC2 and docker
     stop_ec2_instance(API_INSTANCE_ID, region, "MLOps pair.pem")
 
