@@ -95,9 +95,9 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
 
 
-      -------------------------
-      8️⃣ Acceptance Tests
-      -------------------------
+      # -------------------------
+      # 8️⃣ Acceptance Tests
+      # -------------------------
       - name: Acceptance tests (canary)
         run: |
           echo "⏳ Waiting for canary container to boot on port $CANARY_PORT..."
