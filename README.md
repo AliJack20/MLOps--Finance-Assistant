@@ -32,7 +32,7 @@ Run python src/train.py for the entire flow including pulling data from S3, trai
 ```bash
 AWS_ACCESS_KEY_ID=YOUR_KEY
 AWS_SECRET_ACCESS_KEY=YOUR_SECRET
-AWS_REGION=ap-south-1
+AWS_REGION=eu-north-1
 S3_BUCKET=mlops-financeai-s3-bucket
 ```
 
