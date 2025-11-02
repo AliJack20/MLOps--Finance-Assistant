@@ -1,10 +1,13 @@
 # src/train.py
 """
 Train script:
-- Loads data via data_ingestion.full_pipeline_from_csv
+- Loads data via data_ingestion.full_pipeline_from_csv from S3 bucket
 - Trains ExtraTreesRegressor (same hyperparams as your notebook)
 - Logs metrics and model to MLflow (configured to use MLFLOW_TRACKING_URI env var)
 - Uploads a copy of the fitted model as modeals/latest_model.pkl to S3 (S3_BUCKET env)
+- Starts EC2 instance and Docker build and run through ssh
+-Exposes FastAPI
+-Shuts down instance after 10 minutes
 """
 
 import os
@@ -23,8 +26,7 @@ import time
 
 from data_ingestion import full_pipeline_from_csv
 from aws_utils import start_ec2_instance, stop_ec2_instance, run_docker_commands_on_ec2
-
-# from monitoring.evidently_dashboard import generate_data_drift_report
+#from monitoring.evidently_dashboard import generate_data_drift_report
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
