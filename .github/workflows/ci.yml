@@ -113,7 +113,7 @@ jobs:
           echo "⏳ Waiting for canary container to boot on port $CANARY_PORT..."
           for i in {1..60}; do
             echo "⏳ Attempt $i: Checking if canary API is up..."
-            if curl -sf http://127.0.0.1:$CANARY_PORT/health >/dev/null; then
+            if curl -sf http://localhost:$CANARY_PORT/health >/dev/null; then
               echo "✅ Canary API is up!"
               break
             fi
