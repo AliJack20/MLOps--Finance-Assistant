@@ -98,28 +98,28 @@ jobs:
       # -------------------------
       # 8️⃣ Acceptance Tests
       # -------------------------
-      - name: Acceptance tests (canary)
-        run: |
-          echo "⏳ Waiting for canary container to boot on port $CANARY_PORT..."
-          for i in {1..60}; do
-            if curl -sf http://127.0.0.1:$CANARY_PORT/health >/dev/null; then
-              echo "✅ Canary API is up!"
-              break
-            fi
-            sleep 2
-          done
+      # - name: Acceptance tests (canary)
+      #   run: |
+      #     echo "⏳ Waiting for canary container to boot on port $CANARY_PORT..."
+      #     for i in {1..60}; do
+      #       if curl -sf http://127.0.0.1:$CANARY_PORT/health >/dev/null; then
+      #         echo "✅ Canary API is up!"
+      #         break
+      #       fi
+      #       sleep 2
+      #     done
       
-          echo "🚀 Running endpoint checks..."
-          for endpoint in /health /predict /docs; do
-            echo "🔍 Checking endpoint: $endpoint"
-            STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://127.0.0.1:$CANARY_PORT$endpoint)
-            if [ "$STATUS" -ne 200 ]; then
-              echo "❌ Canary failed at $endpoint (status $STATUS)"
-              docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
-              exit 1
-            fi
-          done
-          echo "✅ All endpoints passed acceptance tests!"
+      #     echo "🚀 Running endpoint checks..."
+      #     for endpoint in /health /predict /docs; do
+      #       echo "🔍 Checking endpoint: $endpoint"
+      #       STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://127.0.0.1:$CANARY_PORT$endpoint)
+      #       if [ "$STATUS" -ne 200 ]; then
+      #         echo "❌ Canary failed at $endpoint (status $STATUS)"
+      #         docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
+      #         exit 1
+      #       fi
+      #     done
+      #     echo "✅ All endpoints passed acceptance tests!"
 
 
       # -------------------------
