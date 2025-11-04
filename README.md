@@ -86,6 +86,8 @@ Notes:
 - Tests or app fail due to missing env vars?
   - Set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET` in your shell or `.env`.
   - For unit tests, mock S3/model loading to avoid external calls.
+ 
+This project is co-authored by Syed Rafay Ahmed
 
 - Windows/Mac setup tips?
   - Use Docker Desktop with WSL2 (Windows) or Docker Desktop (macOS).
