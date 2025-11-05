@@ -72,6 +72,9 @@ Notes:
 - The FastAPI app exposes metrics via `prometheus-fastapi-instrumentator` and the `/metrics` endpoint.
 - Grafana runs with persistence under `monitoring/grafana` and can be provisioned to use Prometheus.
 
+Bonus Paths: 
+- Self-hosted runner integration
+
 ❓ FAQ
 
 - Why is Grafana empty/no data?
