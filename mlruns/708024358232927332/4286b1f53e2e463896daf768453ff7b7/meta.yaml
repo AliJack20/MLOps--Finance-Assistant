@@ -1,0 +1,14 @@
+artifact_uri: file:///C:/Users/Ali/DataScience_Projects/MLOps-FinanceAssistant/mlruns/708024358232927332/4286b1f53e2e463896daf768453ff7b7/artifacts
+end_time: 1761639572805
+entry_point_name: ''
+experiment_id: '708024358232927332'
+lifecycle_stage: active
+run_id: 4286b1f53e2e463896daf768453ff7b7
+run_name: efficient-bear-468
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1761639485777
+status: 4
+tags: []
+user_id: Ali
