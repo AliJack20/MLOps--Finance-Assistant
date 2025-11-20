@@ -20,3 +20,11 @@ black
 ruff
 prometheus-fastapi-instrumentator
 evidently
+sentence_transformers
+openai
+pypdf
+docx
+faiss-cpu
+python-docx
+tqdm
+
