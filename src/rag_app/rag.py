@@ -2,11 +2,13 @@
 import os
 from typing import List
 import json
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.document_loaders import TextLoader  # use other loaders as needed
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.schema import Document
+
+
 
 EMB_MODEL = "sentence-transformers/all-MiniLM-L6-v2"  # compact, good baseline
 

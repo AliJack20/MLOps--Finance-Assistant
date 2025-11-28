@@ -36,3 +36,5 @@ torch>=2.0.0
 sentencepiece>=0.1.97
 accelerate>=0.20.3
 huggingface_hub
+pydantic
+tf-keras
