@@ -1,13 +1,16 @@
 # src/api.py
-from fastapi import FastAPI, Response
+import os
+import logging
+from fastapi import FastAPI, Response, HTTPException
 from prometheus_fastapi_instrumentator import Instrumentator
 import pandas as pd
-from src.inference import load_model, predict  # use from src.inference
-import logging
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from pydantic import BaseModel
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+# local imports
+from src.inference import load_model, predict  # your existing functions
 from src.rag_app.rag import RAG
-from src.rag_app.llm import HuggingFaceLLM
+from src.rag_app.llm import HuggingFaceLLM, call_hf_llm
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -16,34 +19,88 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI
 app = FastAPI(title="Finance Assistant API", version="1.0")
 
-rag = RAG(docs_folder="src/rag_app/data")
+# Initialize Prometheus
+instrumentator = Instrumentator().instrument(app)
 
-if rag.vs is None:
-    rag.build_index()
+# Globals (populated at startup)
+model = None
+rag = None
+hf_llm = None
 
-hf_llm = HuggingFaceLLM(model_id="TheBloke/finance-LLM-AWQ")  # replace with your chosen model repo id
 
 class QueryIn(BaseModel):
     query: str
 
-@app.post("/qa")
-async def qa(q: QueryIn):
-    context = rag.get_context(q.query, k=4)
-    prompt = f"""You are an assistant. Use the following context to answer the user's question.\n\nCONTEXT:\n{context}\n\nQuestion: {q.query}\n\nAnswer concisely and cite sources."""
-    answer = hf_llm.generate(prompt, max_tokens=256)
-    return {"answer": answer}
-
-# Initialize Prometheus
-instrumentator = Instrumentator().instrument(app)
-
 
 @app.on_event("startup")
 async def startup_event():
-    """Load model once and expose metrics"""
-    global model
-    model = load_model()  # load from S3 inside inference.py
+    """
+    Load model once and expose metrics.
+    Also ensure the RAG index is built/loaded and instantiate the HF LLM wrapper.
+    """
+    global model, rag, hf_llm
+
+    # 1) Load the classical ML model used by /predict
+    try:
+        model = load_model()  # load from S3 inside inference.py
+        logger.info("✅ Prediction model loaded")
+    except Exception as e:
+        model = None
+        logger.exception("Failed loading prediction model at startup")
+
+    # 2) Prepare RAG vectorstore (build if missing)
+    try:
+        rag = RAG(docs_folder="src/rag_app/data", index_path="src/rag_app/embeddings_cache/faiss_index")
+        rag.build_index_if_missing()
+        logger.info("✅ RAG index ready")
+    except Exception as e:
+        rag = None
+        logger.exception("Failed to load/build RAG index at startup")
+
+    # 3) Instantiate HuggingFaceLLM wrapper
+    try:
+        hf_model_id = os.getenv("HF_MODEL_ID", "TheBloke/finance-LLM-AWQ")
+        hf_llm = HuggingFaceLLM(model_id=hf_model_id)
+        logger.info(f"✅ HuggingFaceLLM initialized (model={hf_model_id})")
+    except Exception as e:
+        hf_llm = None
+        logger.exception("Failed to initialize HuggingFaceLLM at startup")
+
+    # 4) Expose Prometheus metrics (Instrumentator already instrumented app)
     instrumentator.expose(app)
-    logger.info("✅ Model loaded and metrics endpoint exposed")
+    logger.info("✅ Startup complete and metrics exposed")
+
+
+@app.post("/qa")
+async def qa(q: QueryIn):
+    """
+    RAG-backed QA endpoint:
+      - Uses RAG.query(...) to get both context and a prepared prompt
+      - Calls the HuggingFace LLM and returns the answer and the retrieved context
+    """
+    global rag, hf_llm
+    if rag is None:
+        raise HTTPException(status_code=503, detail="RAG index not available")
+
+    if hf_llm is None:
+        raise HTTPException(status_code=503, detail="LLM not available")
+
+    try:
+        res = rag.query(q.query, k=4)
+        prompt = res["prompt"]
+        context = res["context"]
+
+        # Prefer direct class call, fallback to helper if needed
+        try:
+            answer = hf_llm.generate(prompt, max_tokens=256)
+        except Exception:
+            answer = call_hf_llm(prompt, model_id=hf_llm.model_id)
+
+        return {"answer": answer, "context": context}
+
+    except Exception as e:
+        logger.exception("QA request failed")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/health")
@@ -54,29 +111,9 @@ def health():
 
 @app.post("/predict")
 async def predict_api(payload: dict):
-    try:
-        # Convert JSON → DataFrames
-        df = pd.DataFrame([payload])
-
-        # --- FIX categorical mapping ---
-        # Map product_type same way as training
-        if "product_type" in df.columns:
-            mapping = {"Investment": 1, "OwnerOccupier": 0}
-            df["product_type"] = df["product_type"].map(mapping)
-
-        # Drop any non-numeric leftovers
-        df = df.select_dtypes(include=["number"])
-
-        # Predict
-        preds = model.predict(df)
-        return {"input": payload, "prediction": float(preds[0])}
-
-    except Exception as e:
-        logger.exception("Prediction failed")
-        return {"error": str(e)}
-
     """
-    Accepts raw JSON input (flat dict) → runs prediction.
+    Predict endpoint for your classical ML model.
+    Expects a flat JSON dict matching feature names used at training time.
     Example input:
     {
       "full_sq": 89,
@@ -85,11 +122,31 @@ async def predict_api(payload: dict):
       "product_type": "Investment"
     }
     """
+    global model
+    if model is None:
+        return {"error": "Prediction model not loaded"}
+
     try:
-        # Convert single JSON input into a DataFrame
+        # Convert JSON → DataFrame
         df = pd.DataFrame([payload])
-        preds = predict(model, df)
-        return {"prediction": float(preds[0])}
+
+        # --- FIX categorical mapping ---
+        if "product_type" in df.columns:
+            mapping = {"Investment": 1, "OwnerOccupier": 0}
+            df["product_type"] = df["product_type"].map(mapping)
+
+        # Keep numeric columns only (match training preprocessing)
+        df_numeric = df.select_dtypes(include=["number"])
+        if df_numeric.shape[1] == 0:
+            raise ValueError("No numeric features found after preprocessing.")
+
+        # Predict
+        try:
+            preds = predict(model, df_numeric)
+        except Exception:
+            preds = model.predict(df_numeric)
+
+        return {"input": payload, "prediction": float(preds[0])}
 
     except Exception as e:
         logger.exception("Prediction failed")

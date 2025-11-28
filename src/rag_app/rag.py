@@ -1,6 +1,7 @@
 # app/rag.py
 import os
 from typing import List
+import json
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.document_loaders import TextLoader  # use other loaders as needed
 from langchain.embeddings import HuggingFaceEmbeddings
@@ -21,6 +22,25 @@ class RAG:
             self.vs = FAISS.load_local(index_path, self.embeddings)
         else:
             self.vs = None
+
+    def load_json_for_rag(path: str = "src/rag_app/data"):
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        docs = []
+        for i, entry in enumerate(data):
+            combined_text = (
+                f"ABOUT ME:\n{entry.get('about_me', '')}\n\n"
+                f"FINANCIAL CONTEXT:\n{entry.get('context', '')}\n\n"
+                f"ADVICE EXAMPLE:\n{entry.get('response', '')}"
+            )
+            docs.append(
+                Document(
+                    page_content=combined_text,
+                    metadata={"source": f"training_case_{i}"}
+                )
+            )
+        return docs
 
     def build_index(self):
         # naive loader for text files; replace with PDF/HTML loaders as needed
