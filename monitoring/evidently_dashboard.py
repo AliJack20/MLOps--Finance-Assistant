@@ -2,7 +2,7 @@ import pandas as pd
 from evidently import Report
 from evidently.presets import DataDriftPreset
 
-def generate_data_drift_report(train_path, test_path, output_path="data_drift_report.html"):
+def generate_data_drift_report(train, test, output_path="data_drift_report.html"):
     """
     Generates an Evidently Data Drift report comparing train and test datasets.
 
@@ -12,8 +12,8 @@ def generate_data_drift_report(train_path, test_path, output_path="data_drift_re
         output_path (str): Path to save the HTML report (default: data_drift_report.html)
     """
     # Load data
-    train_df = pd.read_csv(train_path)
-    test_df = pd.read_csv(test_path)
+    train_df = train
+    test_df = test
 
     # Drop unnecessary columns (adjust names as needed)
     if 'price_doc' in train_df.columns:

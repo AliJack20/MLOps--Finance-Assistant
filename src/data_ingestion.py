@@ -8,7 +8,16 @@ import os
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from typing import Tuple, List
+import io
+import boto3
+import logging
+from dotenv import load_dotenv
 
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+
+
+S3_BUCKET = os.getenv("S3_BUCKET")
+S3_TRAIN_KEY = os.getenv("S3_TRAIN_KEY")
 
 # Columns known from the notebook that are boolean yes/no -> map to 0/1
 BOOLEAN_COLUMNS = [
@@ -26,19 +35,45 @@ BOOLEAN_COLUMNS = [
     "water_1line",
 ]
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Columns to label encode (example: product_type, ecology in notebook)
 LABEL_COLUMNS = ["product_type", "ecology"]
 
 
+def load_csv_from_s3(bucket: str, key: str) -> pd.DataFrame:
+    """Load CSV from S3 into a pandas DataFrame."""
+    s3 = boto3.client("s3")
+    response = s3.get_object(Bucket=bucket, Key=key)
+    return pd.read_csv(io.BytesIO(response["Body"].read()))
+
+
 def load_csv(path: str) -> pd.DataFrame:
-    """Load CSV into DataFrame."""
-    df = pd.read_csv(path)
-    return df
+    """
+    Load CSV from either a local path or an S3 path (s3://bucket/key).
+    """
+    if path.startswith("s3://"):
+        try:
+            s3 = boto3.client("s3")
+            bucket, key = path.replace("s3://", "").split("/", 1)
+            logger.info(f"Loading CSV from S3: bucket={S3_BUCKET}, key={S3_TRAIN_KEY}")
+            response = s3.get_object(Bucket=S3_BUCKET, Key=S3_TRAIN_KEY)
+            df = pd.read_csv(response["Body"])
+            logger.info(f"Loaded dataset with shape {df.shape}")
+            return df
+        except Exception as e:
+            logger.error(f"Failed to load CSV from S3: {e}")
+            raise
+    else:
+        logger.info(f"Loading CSV from local path: {path}")
+        df = pd.read_csv(path)
+        return df
 
 
 def drop_na(df: pd.DataFrame) -> pd.DataFrame:
     """Drop rows with NA values (same as notebook)."""
-    target_col = 'price_doc'  # Replace with actual target column name
+    target_col = "price_doc"  # Replace with actual target column name
     # Keep first 4 columns plus target
     cols_to_keep = df.columns[:4].tolist() + [target_col]
     df = df[cols_to_keep]
@@ -94,7 +129,7 @@ def full_pipeline_from_csv(
     path: str, target_col: str = "price_doc"
 ) -> Tuple[pd.DataFrame, pd.Series]:
     """Complete ingestion -> cleaned (X, y) from CSV path."""
-    df = load_csv(path)
+    df = load_csv("s3://mlops-financeai-s3-bucket /datasets/train.csv")
     df = drop_na(df)
     df = basic_clean(df)
     df = encode_labels(df)

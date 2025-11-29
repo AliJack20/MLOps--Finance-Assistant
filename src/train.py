@@ -1,10 +1,13 @@
 # src/train.py
 """
 Train script:
-- Loads data via data_ingestion.full_pipeline_from_csv
+- Loads data via data_ingestion.full_pipeline_from_csv from S3 bucket
 - Trains ExtraTreesRegressor (same hyperparams as your notebook)
 - Logs metrics and model to MLflow (configured to use MLFLOW_TRACKING_URI env var)
-- Uploads a copy of the fitted model as models/latest_model.pkl to S3 (S3_BUCKET env)
+- Uploads a copy of the fitted model as modeals/latest_model.pkl to S3 (S3_BUCKET env)
+- Starts EC2 instance and Docker build and run through ssh
+-Exposes FastAPI
+-Shuts down instance after 10 minutes
 """
 
 import os
@@ -19,15 +22,20 @@ from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import root_mean_squared_error, r2_score
 from dotenv import load_dotenv
+import time
+from rag_app.rag import RAG
+from rag_app.llm import call_hf_llm
 
 from data_ingestion import full_pipeline_from_csv
+from aws_utils import start_ec2_instance, stop_ec2_instance, run_docker_commands_on_ec2
+
+# from monitoring.evidently_dashboard import generate_data_drift_report
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from monitoring.evidently_dashboard import generate_data_drift_report
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 # Hyperparameters (from notebook)
 N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 2))
@@ -55,9 +63,12 @@ else:
 # S3_BUCKET = os.getenv("S3_BUCKET")
 S3_MODEL_KEY = os.getenv("S3_MODEL_KEY")
 TRAIN_CSV = os.getenv("TRAIN_CSV", "data/train.csv")
+S3_TRAIN_KEY = os.getenv("S3_TRAIN_KEY")
+S3_TEST_KEY = os.getenv("S3_TEST_KEY")
 MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "mlops-demo")
 aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
 aws_secret_access = os.getenv("AWS_SECRET_ACCESS_KEY")
+API_INSTANCE_ID = os.getenv("API_INSTANCE_ID")
 region = os.getenv("AWS_REGION")
 
 
@@ -75,6 +86,7 @@ def upload_file_to_s3(local_path: str, bucket: str, key: str):
 
 
 def main():
+
     if not MLFLOW_TRACKING_URI:
         raise EnvironmentError(
             "Set MLFLOW_TRACKING_URI in environment (e.g. s3://bucket/mlflow/)"
@@ -93,6 +105,18 @@ def main():
     X_train, X_val, y_train, y_val = train_test_split(
         X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE
     )
+
+    rag = RAG(docs_folder="src/rag_app/data", index_path="embeddings_cache/faiss_index")
+    rag.build_index_if_missing()
+
+    # Run query
+    res = rag.query("I'm 30, living in Japan, should I invest in government bonds?", k=4)
+
+    prompt = res["prompt"]
+
+    # Get LLM answer
+    answer = call_hf_llm(prompt)
+    print(answer)
 
     with mlflow.start_run():
         logger.info("Training ExtraTreesRegressor (n_estimators=%s)", N_ESTIMATORS)
@@ -132,9 +156,17 @@ def main():
     logger.info("Training run finished. MLflow run info available.")
 
     # DATA DRIFT evidently
-    #train_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\train.csv"
-    #test_path = r"D:\Ikhlas University\Semester 7\MLOPS\Project_Financial_Advisor\MLOps--Finance-Assistant\test.csv"
-    #generate_data_drift_report(train_path, test_path, "data_drift_report.html")
+    # train_df = load_csv_from_s3(S3_BUCKET, S3_TRAIN_KEY)
+    # test_df  = load_csv_from_s3(S3_BUCKET, S3_TEST_KEY)
+    # generate_data_drift_report(train_df, test_df, "monitoring\evidently_htmls\data_drift_report.html")
+
+    # Start EC2 instance and Docker that serves the API
+    public_ip = start_ec2_instance(API_INSTANCE_ID, region)
+    run_docker_commands_on_ec2(API_INSTANCE_ID, region, "MLOps pair.pem")
+    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs")
+    time.sleep(600)  # Runs for 10 Minutes
+    # Stop EC2 and docker
+    stop_ec2_instance(API_INSTANCE_ID, region, "MLOps pair.pem")
 
 
 if __name__ == "__main__":
