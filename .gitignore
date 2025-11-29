@@ -1,11 +1,2 @@
 .env
-data/
-mlruns/708024358232927332
-myenv
-data_drift_report.html
-.gitignore
-test.csv
-train.csv
-results.csv
-monitoring
-src
+test_predictions.csv
