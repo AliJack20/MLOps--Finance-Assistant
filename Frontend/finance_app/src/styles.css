@@ -1,0 +1,91 @@
+/* 1. Tailwind Import (Must be at the top for v4) */
+@import "tailwindcss";
+
+/* 2. Import Fonts (Poppins & Roboto) */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap');
+
+/* 3. Global Resets & Font Setup */
+html, body { 
+    height: 100%; 
+    margin: 0;
+}
+
+body {
+    font-family: 'Poppins', Roboto, "Helvetica Neue", sans-serif;
+}
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 0.6; /* Optional: makes it slightly subtler than normal text */
+}
+/* 4. Theme Variables - Dark Mode */
+.dark {
+  --bg-main: linear-gradient(to bottom right, #111827, #1f2937, #111827);
+  --bg-secondary: #1f2937;   /* cards */
+  --bg-tertiary: #374151;    /* borders/hover */
+  --bg-input: #374151;
+  --bg-inverted: #f9fafb;
+  --text-white: #f9fafb;
+  --text-nav: #f9fafb;
+  --navbar-bg: #101828;      /* same as dark secondary */
+  --navbar-text: #f9fafb;
+  --text-main: #f9fafb;
+  --text-muted: #9ca3af;
+  --text-invert: #111827;
+
+  --accent: #22C55E; 
+  --button: #16a34a;         /* Tailwind green-600 */
+
+  --danger: #dc2626;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+
+  --border: #374151;
+  --shadow: rgba(0,0,0,0.4);
+}
+
+/* 5. Theme Variables - Light Mode */
+.light {
+  --bg-main: linear-gradient(to bottom right, #f9fafb, #e5e7eb, #f9fafb);
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e5e7eb;
+  --bg-input: #f3f4f6;
+  --text-white: #ffffff;
+  --text-main: #111827;
+  --text-muted: #4b5563;
+  --text-invert: #f9fafb;
+  --navbar-bg: #3e3f3f;      /* darker shade */
+  --navbar-text: #111827;
+  
+  --accent: #16a34a;
+  --button: #19d15d;
+  --text-nav: #16a34a;
+  --bg-inverted: #4b5563;
+
+  --danger: #dc2626;
+  --warning: #d97706;
+  --info: #2563eb;
+
+  --border: #d1d5db;
+  --shadow: rgba(0,0,0,0.1);
+}
+
+/* 6. Theme Application (The part you asked about) */
+/* This applies the variables to the main div in app.component.html */
+.dark, .light {
+  background: var(--bg-main);
+  color: var(--text-main);
+  min-height: 100vh; /* Ensures the background covers the whole screen */
+  width: 100%;
+}
+/* Inverts the calendar icon color to make it white in Dark Mode */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.6;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+/* Make it brighter on hover */
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
