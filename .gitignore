@@ -7,3 +7,7 @@ MLOps pair.pem
 .github/workflows/cd.yml
 src/rag_app/data
 src/mlvenv
+src/reg.py
+src/test.csv
+src/train.csv
+
