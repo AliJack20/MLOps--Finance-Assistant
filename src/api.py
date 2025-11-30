@@ -12,6 +12,13 @@ from src.inference import load_model, predict  # your existing functions
 from src.rag_app.rag import RAG
 from src.rag_app.llm import HuggingFaceLLM, call_hf_llm
 
+
+from src.rag_app.guardrails import (
+    validate_input,
+    moderate_output
+)
+
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -85,6 +92,15 @@ async def qa(q: QueryIn):
     if hf_llm is None:
         raise HTTPException(status_code=503, detail="LLM not available")
 
+    #GUARDRAILS INTEGRATION INPUT VALIDATION
+    input_check = validate_input(q.query)
+    if not input_check["ok"]:
+        return {
+            "error": "Input rejected due to safety violations",
+            "reasons": input_check["reasons"]
+        }
+    
+    
     try:
         res = rag.query(q.query, k=4)
         prompt = res["prompt"]
@@ -96,7 +112,19 @@ async def qa(q: QueryIn):
         except Exception:
             answer = call_hf_llm(prompt, model_id=hf_llm.model_id)
 
-        return {"answer": answer, "context": context}
+        #OUTPUT VALIDATION GUARDAILS
+        mod = moderate_output(answer, context)
+        
+        return {
+            "answer": mod["safe_answer"],
+            "raw_answer": answer,
+            "moderation": {
+                "ok": mod["ok"],
+                "action": mod["action"],
+                "reasons": mod["reasons"]
+            },
+            "context": context
+        }
 
     except Exception as e:
         logger.exception("QA request failed")
