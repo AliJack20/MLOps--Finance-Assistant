@@ -111,46 +111,31 @@ def health():
 
 @app.post("/predict")
 async def predict_api(payload: dict):
-    """
-    Predict endpoint for your classical ML model.
-    Expects a flat JSON dict matching feature names used at training time.
-    Example input:
-    {
-      "full_sq": 89,
-      "life_sq": 50,
-      "floor": 9,
-      "product_type": "Investment"
-    }
-    """
-    global model
-    if model is None:
-        return {"error": "Prediction model not loaded"}
-
     try:
-        # Convert JSON → DataFrame
         df = pd.DataFrame([payload])
 
-        # --- FIX categorical mapping ---
-        if "product_type" in df.columns:
-            mapping = {"Investment": 1, "OwnerOccupier": 0}
-            df["product_type"] = df["product_type"].map(mapping)
+        if "week" in df.columns:
+            df["week"] = pd.to_datetime(df["week"])
+            df["week_num"] = df["week"].view("int64") // 10**9
 
-        # Keep numeric columns only (match training preprocessing)
-        df_numeric = df.select_dtypes(include=["number"])
-        if df_numeric.shape[1] == 0:
-            raise ValueError("No numeric features found after preprocessing.")
+        df = df.select_dtypes(include=["number"])
 
-        # Predict
-        try:
-            preds = predict(model, df_numeric)
-        except Exception:
-            preds = model.predict(df_numeric)
+        preds = model.predict(df)
 
-        return {"input": payload, "prediction": float(preds[0])}
+        return {
+            "input": payload,
+            "prediction_next_week": float(preds[0])
+        }
 
     except Exception as e:
         logger.exception("Prediction failed")
-        return {"error": str(e)}
+        return {"error": str(e)}    
+    """
+    {
+    "week": "04/01/2004",
+    "actual_spending": 6869.02
+    }
+    """
 
 
 @app.get("/metrics")

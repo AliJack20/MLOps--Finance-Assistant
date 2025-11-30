@@ -32,7 +32,7 @@ Run python src/train.py for the entire flow including pulling data from S3, trai
 ```bash
 AWS_ACCESS_KEY_ID=YOUR_KEY
 AWS_SECRET_ACCESS_KEY=YOUR_SECRET
-AWS_REGION=ap-south-1
+AWS_REGION=eu-north-1
 S3_BUCKET=mlops-financeai-s3-bucket
 ```
 
@@ -71,6 +71,9 @@ Notes:
   - Job: `inference_api` → target `inference_api:8000`
 - The FastAPI app exposes metrics via `prometheus-fastapi-instrumentator` and the `/metrics` endpoint.
 - Grafana runs with persistence under `monitoring/grafana` and can be provisioned to use Prometheus.
+
+Bonus Paths: 
+- Self-hosted runner integration
 
 ❓ FAQ
 

@@ -23,6 +23,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import root_mean_squared_error, r2_score
 from dotenv import load_dotenv
 import time
+import numpy as np
 from rag_app.rag import RAG
 from rag_app.llm import call_hf_llm
 
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 # Hyperparameters (from notebook)
-N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 2))
+N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 100))
 RANDOM_STATE = int(os.getenv("RANDOM_STATE", 42))
 TEST_SIZE = float(os.getenv("TEST_SIZE", 0.2))
 
@@ -62,7 +63,7 @@ else:
 # MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")  # e.g. s3://bucket/mlflow/
 # S3_BUCKET = os.getenv("S3_BUCKET")
 S3_MODEL_KEY = os.getenv("S3_MODEL_KEY")
-TRAIN_CSV = os.getenv("TRAIN_CSV", "data/train.csv")
+TRAIN_CSV = os.getenv("TRAIN_CSV", "data/train_spending.csv")
 S3_TRAIN_KEY = os.getenv("S3_TRAIN_KEY")
 S3_TEST_KEY = os.getenv("S3_TEST_KEY")
 MLFLOW_EXPERIMENT = os.getenv("MLFLOW_EXPERIMENT", "mlops-demo")
@@ -121,8 +122,13 @@ def main():
     with mlflow.start_run():
         logger.info("Training ExtraTreesRegressor (n_estimators=%s)", N_ESTIMATORS)
         model = ExtraTreesRegressor(
-            n_estimators=N_ESTIMATORS, n_jobs=-1, random_state=RANDOM_STATE
+            n_estimators=N_ESTIMATORS, n_jobs=-1, random_state=RANDOM_STATE, min_samples_split=4,bootstrap=False
         )
+        print("X dtype:", X.dtype, "shape:", X.shape)
+        print("y dtype:", y.dtype, "shape:", y.shape)
+        assert np.issubdtype(X.dtype, np.floating), "X must be float dtype"
+        assert np.issubdtype(y.dtype, np.floating), "y must be float dtype"
+
         model.fit(X_train, y_train)
 
         # Eval
@@ -155,6 +161,8 @@ def main():
 
     logger.info("Training run finished. MLflow run info available.")
 
+    #time.sleep(100)
+
     # DATA DRIFT evidently
     # train_df = load_csv_from_s3(S3_BUCKET, S3_TRAIN_KEY)
     # test_df  = load_csv_from_s3(S3_BUCKET, S3_TEST_KEY)
@@ -163,7 +171,7 @@ def main():
     # Start EC2 instance and Docker that serves the API
     public_ip = start_ec2_instance(API_INSTANCE_ID, region)
     run_docker_commands_on_ec2(API_INSTANCE_ID, region, "MLOps pair.pem")
-    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs")
+    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs for 10 Minutes")
     time.sleep(600)  # Runs for 10 Minutes
     # Stop EC2 and docker
     stop_ec2_instance(API_INSTANCE_ID, region, "MLOps pair.pem")
