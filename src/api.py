@@ -35,45 +35,38 @@ def health():
 @app.post("/predict")
 async def predict_api(payload: dict):
     try:
-        # Convert JSON → DataFrames
+        # Convert JSON → DataFrame
         df = pd.DataFrame([payload])
 
-        # --- FIX categorical mapping ---
-        # Map product_type same way as training
-        if "product_type" in df.columns:
-            mapping = {"Investment": 1, "OwnerOccupier": 0}
-            df["product_type"] = df["product_type"].map(mapping)
+        # --- WEEK PREPROCESSING (match training preprocessing) ---
+        if "week" in df.columns:
+            # Convert week to datetime if needed
+            df["week"] = pd.to_datetime(df["week"], dayfirst=True, errors="coerce")
 
-        # Drop any non-numeric leftovers
+            # Convert to numeric (timestamp) so model can use it
+            df["week"] = df["week"].astype("int64") // 10**9  # seconds
+
+        # Keep only numeric columns for model input
         df = df.select_dtypes(include=["number"])
 
         # Predict
         preds = model.predict(df)
-        return {"input": payload, "prediction": float(preds[0])}
 
+        return {
+            "input": payload,
+            "prediction_next_week": float(preds[0])
+        }
+    
     except Exception as e:
         logger.exception("Prediction failed")
         return {"error": str(e)}
-
+    
     """
-    Accepts raw JSON input (flat dict) → runs prediction.
-    Example input:
     {
-      "full_sq": 89,
-      "life_sq": 50,
-      "floor": 9,
-      "product_type": "Investment"
+    "week": "04/01/2004",
+    "actual_spending": 6869.02
     }
     """
-    try:
-        # Convert single JSON input into a DataFrame
-        df = pd.DataFrame([payload])
-        preds = predict(model, df)
-        return {"prediction": float(preds[0])}
-
-    except Exception as e:
-        logger.exception("Prediction failed")
-        return {"error": str(e)}
 
 
 @app.get("/metrics")

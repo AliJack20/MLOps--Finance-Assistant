@@ -19,7 +19,7 @@ AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
 
 def download_model_from_s3(
-    bucket=S3_BUCKET, key=S3_MODEL_KEY, local_path="models/model.pkl"
+    bucket=S3_BUCKET, key=S3_MODEL_KEY, local_path="models/spending_model.pkl"
 ):
     """Download model from S3 and return local path."""
     s3 = boto3.client(
