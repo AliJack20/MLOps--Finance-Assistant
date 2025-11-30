@@ -17,6 +17,9 @@ import numpy as np
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 
+S3_BUCKET = os.getenv("S3_BUCKET")
+S3_TRAIN_KEY = os.getenv("S3_TRAIN_KEY")
+
 # Columns known from the notebook that are boolean yes/no -> map to 0/1
 BOOLEAN_COLUMNS = [
     "culture_objects_top_25",
@@ -38,9 +41,6 @@ logger = logging.getLogger(__name__)
 
 # Columns to label encode (example: product_type, ecology in notebook)
 LABEL_COLUMNS = ["product_type", "ecology"]
-
-S3_BUCKET = os.getenv("S3_BUCKET")
-S3_TRAIN_KEY = os.getenv("S3_TRAIN_KEY")
 
 
 def load_csv_from_s3(bucket: str, key: str) -> pd.DataFrame:

@@ -24,6 +24,8 @@ from sklearn.metrics import root_mean_squared_error, r2_score
 from dotenv import load_dotenv
 import time
 import numpy as np
+from rag_app.rag import RAG
+from rag_app.llm import call_hf_llm
 
 from data_ingestion import full_pipeline_from_csv
 from aws_utils import start_ec2_instance, stop_ec2_instance, run_docker_commands_on_ec2
@@ -104,6 +106,18 @@ def main():
     X_train, X_val, y_train, y_val = train_test_split(
         X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE
     )
+
+    rag = RAG(docs_folder="src/rag_app/data", index_path="embeddings_cache/faiss_index")
+    rag.build_index_if_missing()
+
+    # Run query
+    res = rag.query("I'm 30, living in Japan, should I invest in government bonds?", k=4)
+
+    prompt = res["prompt"]
+
+    # Get LLM answer
+    answer = call_hf_llm(prompt)
+    print(answer)
 
     with mlflow.start_run():
         logger.info("Training ExtraTreesRegressor (n_estimators=%s)", N_ESTIMATORS)
