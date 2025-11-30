@@ -35,38 +35,31 @@ def health():
 @app.post("/predict")
 async def predict_api(payload: dict):
     try:
-        # Convert JSON → DataFrame
         df = pd.DataFrame([payload])
 
-        # --- WEEK PREPROCESSING (match training preprocessing) ---
         if "week" in df.columns:
-            # Convert week to datetime if needed
-            df["week"] = pd.to_datetime(df["week"], dayfirst=True, errors="coerce")
+            df["week"] = pd.to_datetime(df["week"])
+            df["week_num"] = df["week"].view("int64") // 10**9
 
-            # Convert to numeric (timestamp) so model can use it
-            df["week"] = df["week"].astype("int64") // 10**9  # seconds
-
-        # Keep only numeric columns for model input
         df = df.select_dtypes(include=["number"])
 
-        # Predict
         preds = model.predict(df)
 
         return {
             "input": payload,
             "prediction_next_week": float(preds[0])
         }
-    
+
     except Exception as e:
         logger.exception("Prediction failed")
-        return {"error": str(e)}
-    
+        return {"error": str(e)}    
     """
     {
     "week": "04/01/2004",
     "actual_spending": 6869.02
     }
     """
+    
 
 
 @app.get("/metrics")
