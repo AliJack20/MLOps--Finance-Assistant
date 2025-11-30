@@ -147,7 +147,7 @@ def main():
 
     logger.info("Training run finished. MLflow run info available.")
 
-    time.sleep(100)
+    #time.sleep(100)
 
     # DATA DRIFT evidently
     # train_df = load_csv_from_s3(S3_BUCKET, S3_TRAIN_KEY)
@@ -157,7 +157,7 @@ def main():
     # Start EC2 instance and Docker that serves the API
     public_ip = start_ec2_instance(API_INSTANCE_ID, region)
     run_docker_commands_on_ec2(API_INSTANCE_ID, region, "MLOps pair.pem")
-    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs")
+    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs for 10 Minutes")
     time.sleep(600)  # Runs for 10 Minutes
     # Stop EC2 and docker
     stop_ec2_instance(API_INSTANCE_ID, region, "MLOps pair.pem")
