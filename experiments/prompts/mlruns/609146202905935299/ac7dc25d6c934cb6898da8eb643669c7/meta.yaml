@@ -1,0 +1,14 @@
+artifact_uri: /home/yasq/PycharmProjects/mlopsfinass/experiments/prompts/mlruns/609146202905935299/ac7dc25d6c934cb6898da8eb643669c7/artifacts
+end_time: 1764085747696
+entry_point_name: ''
+experiment_id: '609146202905935299'
+lifecycle_stage: active
+run_id: ac7dc25d6c934cb6898da8eb643669c7
+run_name: Zero-Shot
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1764085747432
+status: 3
+tags: []
+user_id: yasq

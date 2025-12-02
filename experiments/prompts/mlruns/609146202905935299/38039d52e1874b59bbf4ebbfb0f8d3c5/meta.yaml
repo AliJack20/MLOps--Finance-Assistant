@@ -1,0 +1,14 @@
+artifact_uri: /home/yasq/PycharmProjects/mlopsfinass/experiments/prompts/mlruns/609146202905935299/38039d52e1874b59bbf4ebbfb0f8d3c5/artifacts
+end_time: 1764085748186
+entry_point_name: ''
+experiment_id: '609146202905935299'
+lifecycle_stage: active
+run_id: 38039d52e1874b59bbf4ebbfb0f8d3c5
+run_name: Few-Shot_k=3
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1764085747982
+status: 3
+tags: []
+user_id: yasq
