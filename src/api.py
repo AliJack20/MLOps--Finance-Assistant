@@ -12,7 +12,7 @@ import asyncio
 from src.inference import load_model, predict  # your existing functions
 
 from src.rag_app.llm import llm_adapter  # the GradioLLM instance
-from src.rag_app import RAG
+from src.rag_app.rag import RAG
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
