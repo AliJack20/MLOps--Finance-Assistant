@@ -6,11 +6,13 @@ from prometheus_fastapi_instrumentator import Instrumentator
 import pandas as pd
 from pydantic import BaseModel
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+import asyncio
 
 # local imports
 from src.inference import load_model, predict  # your existing functions
-from src.rag_app.rag import RAG
-from src.rag_app.llm import HuggingFaceLLM, call_hf_llm
+
+from src.rag_app.llm import llm_adapter  # the GradioLLM instance
+from src.rag_app import RAG
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -31,54 +33,49 @@ hf_llm = None
 class QueryIn(BaseModel):
     query: str
 
-
 @app.on_event("startup")
 async def startup_event():
-    """
-    Load model once and expose metrics.
-    Also ensure the RAG index is built/loaded and instantiate the HF LLM wrapper.
-    """
     global model, rag, hf_llm
 
-    # 1) Load the classical ML model used by /predict
+    # 1) Load prediction model
     try:
-        model = load_model()  # load from S3 inside inference.py
+        model = load_model()
         logger.info("✅ Prediction model loaded")
-    except Exception as e:
+    except Exception:
         model = None
         logger.exception("Failed loading prediction model at startup")
 
-    # 2) Prepare RAG vectorstore (build if missing)
+    # 2) Load/build RAG index
     try:
-        rag = RAG(docs_folder="src/rag_app/data", index_path="src/rag_app/embeddings_cache/faiss_index")
-        rag.build_index_if_missing()
+        rag = RAG(
+            docs_folder="src/rag_app/data",
+            index_path="src/rag_app/embeddings_cache/faiss_index"
+        )
+        await asyncio.to_thread(rag.build_index_if_missing)
         logger.info("✅ RAG index ready")
-    except Exception as e:
+    except Exception:
         rag = None
         logger.exception("Failed to load/build RAG index at startup")
 
-    # 3) Instantiate HuggingFaceLLM wrapper
+    # 3) Use Gradio LLM Adapter
     try:
-        hf_model_id = os.getenv("HF_MODEL_ID", "TheBloke/finance-LLM-AWQ")
-        hf_llm = HuggingFaceLLM(model_id=hf_model_id)
-        logger.info(f"✅ HuggingFaceLLM initialized (model={hf_model_id})")
-    except Exception as e:
+        from src.rag_app.llm import llm_adapter
+        hf_llm = llm_adapter
+        logger.info("✅ Gradio LLM adapter initialized")
+    except Exception:
         hf_llm = None
-        logger.exception("Failed to initialize HuggingFaceLLM at startup")
+        logger.exception("Failed initializing llm_adapter")
 
-    # 4) Expose Prometheus metrics (Instrumentator already instrumented app)
+    # 4) Expose metrics
     instrumentator.expose(app)
-    logger.info("✅ Startup complete and metrics exposed")
+    logger.info("✅ Startup complete")
+
 
 
 @app.post("/qa")
 async def qa(q: QueryIn):
-    """
-    RAG-backed QA endpoint:
-      - Uses RAG.query(...) to get both context and a prepared prompt
-      - Calls the HuggingFace LLM and returns the answer and the retrieved context
-    """
     global rag, hf_llm
+
     if rag is None:
         raise HTTPException(status_code=503, detail="RAG index not available")
 
@@ -86,21 +83,26 @@ async def qa(q: QueryIn):
         raise HTTPException(status_code=503, detail="LLM not available")
 
     try:
+        # 1. RAG retrieve context + prompt
         res = rag.query(q.query, k=4)
         prompt = res["prompt"]
         context = res["context"]
 
-        # Prefer direct class call, fallback to helper if needed
-        try:
-            answer = hf_llm.generate(prompt, max_tokens=256)
-        except Exception:
-            answer = call_hf_llm(prompt, model_id=hf_llm.model_id)
+        # 2. Call your LLM (blocking → run in thread)
+        answer = await asyncio.to_thread(
+            hf_llm.generate,
+            prompt,      # user_message
+            "",          # system_prompt
+            256,         # max_tokens
+            0.7          # temp
+        )
 
         return {"answer": answer, "context": context}
 
-    except Exception as e:
+    except Exception:
         logger.exception("QA request failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="LLM generation failed")
+
 
 
 @app.get("/health")
