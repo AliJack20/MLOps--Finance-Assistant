@@ -1,0 +1,10 @@
+<app-navbar *ngIf="showNavbar"></app-navbar>
+
+<div [ngClass]="theme" 
+     class="min-h-screen transition-colors duration-300"
+     [class.pt-2]="showNavbar"> 
+     
+  <router-outlet></router-outlet>
+</div>
+
+<app-toast></app-toast>

@@ -37,3 +37,8 @@ accelerate>=0.20.3
 huggingface_hub
 pydantic
 tf-keras
+transformers
+torch
+accelerate
+sentencepiece
+gradio
