@@ -42,4 +42,4 @@ torch
 accelerate
 sentencepiece
 gradio
-sklearn
+scikit-learn
