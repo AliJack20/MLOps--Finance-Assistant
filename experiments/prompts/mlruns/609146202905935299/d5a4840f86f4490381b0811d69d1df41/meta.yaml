@@ -1,0 +1,14 @@
+artifact_uri: /home/yasq/PycharmProjects/mlopsfinass/experiments/prompts/mlruns/609146202905935299/d5a4840f86f4490381b0811d69d1df41/artifacts
+end_time: 1764085748395
+entry_point_name: ''
+experiment_id: '609146202905935299'
+lifecycle_stage: active
+run_id: d5a4840f86f4490381b0811d69d1df41
+run_name: Chain-of-Thought
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1764085748188
+status: 3
+tags: []
+user_id: yasq

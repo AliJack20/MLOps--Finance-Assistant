@@ -1,144 +1,88 @@
-name: MLOPS CI - Full Pipeline
+name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
+  workflow_dispatch: {}
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: alijack20/mlops-finance-assistant
-  TAG: ${{ github.sha }}
-  CANARY_PORT: 9000
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-  build-test-deploy:
+  install-core:
     runs-on: ubuntu-latest
-    env:
-      CI_MODE: "1"     # ensures dummy model loads (no S3)
-      ENV: "ci"
-
     steps:
-      # -------------------------
-      # 1️⃣ Checkout code
-      # -------------------------
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # -------------------------
-      # 2️⃣ Set up Python
-      # -------------------------
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      # -------------------------
-      # 3️⃣ Install dependencies
-      # -------------------------
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install black ruff
-          echo "✅ Dependencies installed."
-
-      # -------------------------
-      # 4️⃣ Syntax + Lint checks
-      # -------------------------
-      - name: Run ruff lint
-        run: ruff check src
-        continue-on-error: true  # Allow to continue even if lint fails
-      - name: Run black format check
-        run: black --check src
-        continue-on-error: true  # Allow to continue even if format check fails
-
-      # -------------------------
-      # 5️⃣ Build & Test app locally
-      # -------------------------
-      - name: Start FastAPI app (local test)
-        run: |
-          echo "⏳ Starting FastAPI app locally..."
-          nohup python -m uvicorn src.api:app --host 0.0.0.0 --port 8000 --log-level info &
-          for i in {1..30}; do
-            echo "⏳ Attempt $i: Checking if FastAPI app is up..."
-            if curl -sf http://127.0.0.1:8000/health >/dev/null; then
-              echo "✅ FastAPI app is up"
-              break
-            fi
-            sleep 1
-          done
-
-      - name: Health check
-        run: |
-          echo "🔍 Running health check..."
-          curl -sS http://127.0.0.1:8000/health
-
-      # -------------------------
-      # 6️⃣ Docker Build & Push to GHCR
-      # -------------------------
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
+      - name: Cache pip & wheelhouse
+        uses: actions/cache@v4
+        id: pip-cache
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          path: |
+            ~/.cache/pip
+            ./wheelhouse
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-core.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      - name: Build and push Docker image
+      - name: Install build tools (if needed)
         run: |
-          IMAGE_NAME_LOWER=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
-          echo "🧱 Building image: $REGISTRY/$IMAGE_NAME_LOWER:$TAG"
-          docker build -t $REGISTRY/$IMAGE_NAME_LOWER:$TAG .
-          docker push $REGISTRY/$IMAGE_NAME_LOWER:$TAG
-          echo "✅ Docker image built and pushed."
+          python -m pip install --upgrade pip setuptools wheel
 
-      # -------------------------
-      # 7️⃣ Canary Deploy (temporary container)
-      # -------------------------
-      - name: Run canary container
+      - name: Install core dependencies (no cache dir, prefer binaries)
         run: |
-          echo "🧑‍🔧 Running canary container..."
-          docker run -d -p 9000:8000 \
-            --name canary \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
-          echo "Canary container started. Checking logs..."
-          docker logs canary  # Check the logs for any errors
+          pip install --no-cache-dir --prefer-binary -r requirements-core.txt
 
-     # -------------------------
-      # 8️⃣ Acceptance Tests
-      # -------------------------
-      # - name: Acceptance tests (canary)
-      #   run: |
-      #     echo "⏳ Waiting for canary container to boot on port $CANARY_PORT..."
-      #     for i in {1..60}; do
-      #       if curl -sf http://127.0.0.1:$CANARY_PORT/health >/dev/null; then
-      #         echo "✅ Canary API is up!"
-      #         break
-      #       fi
-      #       sleep 2
-      #     done
-      
-      #     echo "🚀 Running endpoint checks..."
-      #     for endpoint in /health /predict /docs; do
-      #       echo "🔍 Checking endpoint: $endpoint"
-      #       STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://127.0.0.1:$CANARY_PORT$endpoint)
-      #       if [ "$STATUS" -ne 200 ]; then
-      #         echo "❌ Canary failed at $endpoint (status $STATUS)"
-      #         docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
-      #         exit 1
-      #       fi
-      #     done
-      #     echo "✅ All endpoints passed acceptance tests!"
-
-      # -------------------------
-      # 9️⃣ Cleanup
-      # -------------------------
-      - name: Stop and remove canary container
-        if: always()
+      - name: Run tests (or other steps)
         run: |
-          echo "⏳ Stopping canary container..."
-          docker ps -q --filter "publish=$CANARY_PORT" | xargs -r docker stop
-          echo "Cleaning up unused Docker resources..."
-          docker system prune -af
-          echo "✅ Cleanup complete."
+          pytest -q
+
+  # Heavy install job — run only on demand or on a larger/self-hosted runner
+  install-heavy:
+    runs-on: ubuntu-latest
+    needs: install-core
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[heavy]') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Restore pip & wheelhouse cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ./wheelhouse
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements-core.txt', '**/requirements-heavy.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Make wheelhouse directory
+        run: mkdir -p wheelhouse
+
+      - name: Build wheels for heavy packages (optional — do once, cached)
+        run: |
+          # This builds wheels and stores them into ./wheelhouse for caching
+          pip wheel --no-deps --wheel-dir=wheelhouse -r requirements-heavy.txt || true
+
+      - name: Install heavy deps from wheelhouse + allow remote fallback
+        run: |
+          # Try to install from wheelhouse first (fast, no build). Fallback to remote if missing.
+          pip install --no-cache-dir --prefer-binary --find-links=wheelhouse -r requirements-heavy.txt
+
+      - name: Run heavy integration tests
+        run: |
+          pytest tests/integration -q
