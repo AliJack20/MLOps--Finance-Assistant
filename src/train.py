@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 import time
 import numpy as np
 from rag_app.rag import RAG
-from rag_app.llm import call_hf_llm
+from rag_app.llm import get_answer, get_intent
 
 from data_ingestion import full_pipeline_from_csv
 from aws_utils import start_ec2_instance, stop_ec2_instance, run_docker_commands_on_ec2
@@ -111,13 +111,21 @@ def main():
     rag.build_index_if_missing()
 
     # Run query
-    res = rag.query("I'm 30, living in Japan, should I invest in government bonds?", k=4)
+    res = rag.query("What are government bonds?", k=4)
 
-    prompt = res["prompt"]
+    rag_prompt = res["prompt"]
+    #print("This is RAG output",rag_prompt)
+
+    #time.sleep(100)
 
     # Get LLM answer
-    answer = call_hf_llm(prompt)
-    print(answer)
+    user_input = "What are goverment bonds"
+    intent_json = get_intent(user_input)
+    print("Detected Intent:", intent_json)
+    final_response = get_answer(user_input, rag_prompt)
+    print("Bot Answer:", final_response)
+
+    time.sleep(100)
 
     with mlflow.start_run():
         logger.info("Training ExtraTreesRegressor (n_estimators=%s)", N_ESTIMATORS)
