@@ -3,16 +3,9 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { CalendarOptions, EventClickArg, EventInput } from '@fullcalendar/core';
-
-// 🔹 Transaction Interface
-export interface Transaction {
-  id: string;
-  title: string;
-  amount: number;
-  date: Date; // Javascript Date object
-  category: string;
-  type: 'income' | 'expense';
-}
+import { FinancialAPIService } from '../../services/finance-api.service';
+import { AuthService } from '../../services/auth.service';
+import { Financial, CategoryColor } from '../../models/api_models';
 
 @Component({
   selector: 'app-calendar',
@@ -23,28 +16,19 @@ export interface Transaction {
 export class CalendarComponent implements OnInit {
   
   // 🔹 Modal State
-  showModal = false;
-  selectedDate: Date | null = null;
-  selectedDateStr: string = '';
+  showDayModal = false;
+  showAddModal = false;
   
-  // 🔹 Data State
-  selectedDayTransactions: Transaction[] = [];
+  // 🔹 Selection Data
+  selectedDateStr: string = ''; // Display string (e.g. "Wed, Dec 3")
+  currentDateKey: string = '';  // Logic key (e.g. "2025-12-03")
+  
+  selectedDayTransactions: Financial[] = [];
   dailyNet: number = 0;
 
-  // 🔹 Master Data (Mock Database)
-  allTransactions: Transaction[] = [];
-
-  // 🔹 Category Color Map
-  categoryColors: Record<string, string> = {
-    'Housing': '#ef4444',      // Red
-    'Income': '#22c55e',       // Green
-    'Food': '#f59e0b',         // Orange/Amber
-    'Transport': '#3b82f6',    // Blue
-    'Entertainment': '#8b5cf6',// Purple
-    'Utilities': '#64748b',    // Slate
-    'Business': '#0ea5e9',     // Sky
-    'default': '#6b7280'       // Gray
-  };
+  // 🔹 Master Data
+  allTransactions: Financial[] = [];
+  categories: CategoryColor[] = [];
 
   calendarOptions: CalendarOptions = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -56,46 +40,38 @@ export class CalendarComponent implements OnInit {
     },
     editable: false, 
     selectable: true,
-    
-    // ⚡ FIX 1: Rename "all-day" to "Total"
     allDayText: 'Total',
-
-    // ⚡ FIX 2: Max Events & Overlap
     dayMaxEvents: 20, 
     slotEventOverlap: false,
-    slotDuration: '00:30:00',
     height: 'auto',
 
-    // 1️⃣ Handle Date Click (Empty Cell) -> Show Log
+    // 1️⃣ Handle Date Click (Empty Cell)
     dateClick: (info) => {
-      this.openDayLog(new Date(info.dateStr));
+      // info.dateStr is "YYYY-MM-DD" (Stable)
+      this.openDayLog(info.dateStr); 
     },
 
-    // 2️⃣ Handle Event Click (Existing Bar) -> Show Log
+    // 2️⃣ Handle Event Click (Existing Bar)
     eventClick: (info: EventClickArg) => {
       if (info.event.start) {
-        this.openDayLog(info.event.start);
+        // Extract YYYY-MM-DD from the event start date manually to avoid timezone shifts
+        // info.event.startStr is ISO8601 (e.g. 2025-12-03T00:00:00)
+        const dateStr = info.event.startStr.split('T')[0];
+        this.openDayLog(dateStr);
       }
     },
 
     // 3️⃣ Custom Render
     eventContent: (arg) => {
       const isSummary = arg.event.extendedProps['viewType'] === 'summary';
-      const isIncome = arg.event.extendedProps['type'] === 'income';
-      const isExpense = arg.event.extendedProps['type'] === 'expense';
-      
-      // Base classes
       let classes = 'px-2 py-0.5 rounded text-[11px] font-bold w-full truncate text-center transition hover:scale-105 cursor-pointer shadow-sm ';
       let style = '';
 
       if (isSummary) {
-        // --- MONTH VIEW & WEEK HEADER (Net Total) ---
-        // We use Tailwind classes for the translucent look
+        const isIncome = arg.event.extendedProps['type'] === 'income';
         if (isIncome) classes += 'bg-green-500/20 text-green-400 border border-green-500/50';
-        else if (isExpense) classes += 'bg-red-500/20 text-red-400 border border-red-500/50';
+        else classes += 'bg-red-500/20 text-red-400 border border-red-500/50';
       } else {
-        // --- WEEK VIEW BODY (Detailed) ---
-        // We use the specific Category Color for the background
         const catColor = arg.event.backgroundColor || '#6b7280';
         classes += 'text-white border border-white/10';
         style = `background-color: ${catColor};`;
@@ -106,130 +82,157 @@ export class CalendarComponent implements OnInit {
       };
     },
 
-    events: [] // Populated in ngOnInit
+    events: [] 
   };
 
-  constructor() {}
+  constructor(
+    private financialService: FinancialAPIService,
+    private auth: AuthService
+  ) {}
 
   ngOnInit() {
-    this.generateDummyData();
-    this.updateCalendarEvents();
+    this.fetchData();
   }
 
-  // 🔹 1. Generate Dummy Data (Current Month & Week)
-  generateDummyData() {
-    const today = new Date();
-    const currYear = today.getFullYear();
-    const currMonth = today.getMonth();
+  fetchData() {
+    const userId = this.auth.getUserId();
+    if (!userId) return;
 
-    const transactions: Transaction[] = [
-      // -- Past Days --
-      { id: '1', title: 'Rent Payment', amount: -1200, date: new Date(currYear, currMonth, 1, 9, 0), category: 'Housing', type: 'expense' },
-      { id: '2', title: 'Freelance Gig', amount: 800, date: new Date(currYear, currMonth, 5, 14, 30), category: 'Income', type: 'income' },
-      { id: '3', title: 'Grocery Run', amount: -150, date: new Date(currYear, currMonth, 5, 18, 0), category: 'Food', type: 'expense' },
+    // 1. Fetch Transactions
+    this.financialService.getAllByUser(userId).subscribe((res: any) => {
+      this.allTransactions = res.financials || [];
       
-      // -- This Week (Around Today) --
-      { id: '4', title: 'Client Deposit', amount: 2500, date: new Date(currYear, currMonth, today.getDate(), 10, 0), category: 'Business', type: 'income' },
-      { id: '5', title: 'Lunch', amount: -25, date: new Date(currYear, currMonth, today.getDate(), 12, 30), category: 'Food', type: 'expense' },
-      { id: '6', title: 'Uber', amount: -45, date: new Date(currYear, currMonth, today.getDate(), 13, 0), category: 'Transport', type: 'expense' },
+      // 2. Extract Categories (for the modal)
+      this.extractCategories();
       
-      // -- Tomorrow --
-      { id: '7', title: 'Netflix', amount: -15, date: new Date(currYear, currMonth, today.getDate() + 1, 9, 0), category: 'Entertainment', type: 'expense' },
-      
-      // -- End of Month --
-      { id: '8', title: 'Internet Bill', amount: -80, date: new Date(currYear, currMonth, 28, 10, 0), category: 'Utilities', type: 'expense' },
-    ];
-
-    this.allTransactions = transactions;
+      // 3. Map to Calendar
+      this.updateCalendarEvents();
+    });
   }
 
-  // 🔹 2. Map Transactions to Calendar Events
+  extractCategories() {
+    const catMap = new Map<string, string>();
+    // Defaults
+    catMap.set('Food', '#f97316');
+    catMap.set('Rent', '#dc2626');
+    
+    this.allTransactions.forEach(t => {
+        if (t.category) catMap.set(t.category, t.color || '#cccccc');
+    });
+    
+    this.categories = Array.from(catMap.entries())
+                           .map(([name, color]) => ({ name, color }))
+                           .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // 🔥 HELPER: Get Date String without Timezone conversion
+  private getDateKey(dateInput: Date | string): string {
+    if (!dateInput) return '';
+    // If it's a string (from DB), just take the first 10 chars "2025-12-03"
+    if (typeof dateInput === 'string') {
+        return dateInput.substring(0, 10);
+    }
+    // If it's a Date object, convert to ISO string and take first 10
+    return dateInput.toISOString().split('T')[0];
+  }
+
   updateCalendarEvents() {
     const events: EventInput[] = [];
-
-    // A. AGGREGATE LOGIC (For Month View & Week Total Row)
-    // We sum up Income and Expense per day
     const dailyMap = new Map<string, { income: number, expense: number }>();
 
     this.allTransactions.forEach(t => {
-      const dateKey = t.date.toISOString().split('T')[0]; // YYYY-MM-DD
-      if (!dailyMap.has(dateKey)) dailyMap.set(dateKey, { income: 0, expense: 0 });
+      // 🔥 FIX: Use String slicing instead of Date object manipulation
+      const dateKey = this.getDateKey(t.date);
       
+      if (!dailyMap.has(dateKey)) dailyMap.set(dateKey, { income: 0, expense: 0 });
       const stats = dailyMap.get(dateKey)!;
+
       if (t.type === 'income') stats.income += t.amount;
       else stats.expense += Math.abs(t.amount);
     });
 
-    // Create Summary Events
+    // A. Summary Events (The Totals)
     dailyMap.forEach((stats, dateStr) => {
       const net = stats.income - stats.expense;
-
-      // Only show if there is activity
       if (net !== 0) {
         events.push({
-          title: `${net > 0 ? '+' : '-'}$${Math.abs(net)}`, // E.g. "+$500"
-          start: dateStr,
-          allDay: true, // 👈 Puts it in the "Total" row in Week View
-          // 👇 CHANGED: Removed 'month-view-only' so it shows in Week View "Total" row too
+          title: `${net > 0 ? '+' : '-'}$${Math.abs(net)}`,
+          start: dateStr, // "2025-12-03"
+          allDay: true,   // 🔥 Puts it in the top row for Week View
           classNames: [], 
           backgroundColor: 'transparent', 
           borderColor: 'transparent',
-          extendedProps: { 
-            type: net > 0 ? 'income' : 'expense',
-            viewType: 'summary'
-          }
+          extendedProps: { type: net > 0 ? 'income' : 'expense', viewType: 'summary' }
         });
       }
     });
 
-    // B. DETAIL LOGIC (For Week View Body)
-    // We create an event for EVERY single transaction
+    // B. Detail Events (The individual items)
     this.allTransactions.forEach(t => {
+      const dateKey = this.getDateKey(t.date);
+
       events.push({
         title: `${t.title} ($${Math.abs(t.amount)})`,
-        start: t.date, // Exact time
+        start: dateKey, // Force string date
         allDay: false,
-        classNames: ['week-view-only'], // 👈 CSS Hides this in Month View
-        // Use Category Color
-        backgroundColor: this.categoryColors[t.category] || this.categoryColors['default'],
+        classNames: ['week-view-only'], // Hide in Month view via CSS
+        backgroundColor: t.color || '#6b7280', 
         borderColor: 'transparent',
-        extendedProps: { 
-          type: t.type,
-          viewType: 'detail'
-        }
+        extendedProps: { type: t.type, viewType: 'detail' }
       });
     });
 
     this.calendarOptions.events = events;
   }
 
-  // 🔹 3. Open Logic
-  openDayLog(date: Date) {
-    this.selectedDate = date;
-    this.selectedDateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  // --- Day Detail Modal ---
+  openDayLog(dateStr: string) {
+    // dateStr is "YYYY-MM-DD" passed directly from FullCalendar
+    this.currentDateKey = dateStr; 
 
-    // Filter transactions for this specific day
-    this.selectedDayTransactions = this.allTransactions.filter(t => 
-      t.date.toDateString() === date.toDateString()
-    );
+    // Create a visual date object (Force Local Time for correct formatting)
+    // appending T00:00:00 ensures the browser treats it as local time, not UTC
+    const visualDate = new Date(dateStr + 'T00:00:00');
+    this.selectedDateStr = visualDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-    // Calculate Net for the header
-    const income = this.selectedDayTransactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const expense = this.selectedDayTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
-    
-    this.dailyNet = income + expense; // Expense is negative in data
-    this.showModal = true;
+    // 🔥 Filter using string comparison to avoid timezone shifts
+    this.selectedDayTransactions = this.allTransactions.filter(t => {
+       return this.getDateKey(t.date) === this.currentDateKey;
+    });
+
+    const income = this.selectedDayTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+    const expense = this.selectedDayTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+    this.dailyNet = income - expense;
+
+    this.showDayModal = true;
   }
 
-  closeModal() {
-    this.showModal = false;
+  closeDayModal() {
+    this.showDayModal = false;
   }
 
-  // Helper for modal colors
+  // --- Add Transaction Logic ---
+  openAddModal() {
+    this.showDayModal = false; // Close detail modal first
+    this.showAddModal = true;  // Open add modal
+  }
+
+  closeAddModal() {
+    this.showAddModal = false;
+  }
+
+  handleNewTransaction(newTx: Financial) {
+    const userId = this.auth.getUserId();
+    if (!userId) return;
+
+    this.financialService.create({ ...newTx, user: userId }).subscribe(() => {
+      this.showAddModal = false;
+      this.fetchData(); // Refresh calendar data
+      // Re-open the day log to show the new item
+      if (this.currentDateKey) this.openDayLog(this.currentDateKey);
+    });
+  }
+
   getAmountColor(amount: number): string {
     return amount >= 0 ? 'text-green-400' : 'text-red-400';
   }

@@ -1,28 +1,42 @@
-import { Component, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, ViewChild, ElementRef, AfterViewChecked, OnInit } from '@angular/core';
+import { ChatAPIService } from '../../services/chat-api.service';
+import { ToastService } from '../../services/toast.service';
 
 interface ChatMessage {
   sender: 'user' | 'bot';
   text: string;
-  timestamp: Date; // Added timestamp for realism
+  timestamp: Date;
 }
 
 @Component({
   selector: 'app-chat',
   standalone: false,
   templateUrl: './chat.component.html',
-  styleUrl: './chat.component.css'
+  styleUrls: ['./chat.component.css']
 })
-export class ChatComponent implements AfterViewChecked {
+export class ChatComponent implements OnInit, AfterViewChecked {
   @ViewChild('scrollContainer') private scrollContainer!: ElementRef;
 
   messages: ChatMessage[] = [
-    { sender: 'bot', text: "Hello! I’m FinanceBot. How can I help you today?", timestamp: new Date() }
+    { 
+      sender: 'bot', 
+      text: "Hello! I’m FinanceBot. Tell me to 'Add 50 for lunch' or ask 'How much did I spend on rent?'", 
+      timestamp: new Date() 
+    }
   ];
 
   input: string = "";
   loading: boolean = false;
 
-  // Auto-scroll logic
+  constructor(
+    private chatService: ChatAPIService,
+    private toastService: ToastService
+  ) {}
+
+  ngOnInit() {
+    this.scrollToBottom();
+  }
+
   ngAfterViewChecked() {
     this.scrollToBottom();
   }
@@ -36,29 +50,66 @@ export class ChatComponent implements AfterViewChecked {
   sendMessage() {
     if (!this.input.trim()) return;
 
-    const userMessage: ChatMessage = {
+    const userText = this.input.trim();
+    
+    // 1. Add User Message immediately
+    this.messages.push({
       sender: 'user',
-      text: this.input.trim(),
+      text: userText,
       timestamp: new Date()
-    };
+    });
 
-    this.messages.push(userMessage);
     this.input = "";
     this.loading = true;
 
-    // Simulate bot API
-    setTimeout(() => {
-      const botReply: ChatMessage = {
-        sender: 'bot',
-        text: this.generateMockReply(userMessage.text),
-        timestamp: new Date()
-      };
-      this.messages.push(botReply);
-      this.loading = false;
-    }, 1200);
+    // 2. Call the Real API
+    this.chatService.sendMessage(userText).subscribe({
+      next: (res) => {
+        
+        // 3. Check for Actions (Did the bot create data?)
+        if (res.created) {
+          this.toastService.show('✅ New Record added', 'success');
+          // Ideally, you'd emit a global event here to refresh the dashboard if they were side-by-side
+        }
+
+        // 4. Format and Add Bot Response
+        const formattedText = this.formatMessage(res.response);
+        
+        this.messages.push({
+          sender: 'bot',
+          text: formattedText,
+          timestamp: new Date()
+        });
+        
+        this.loading = false;
+      },
+      error: (err) => {
+        console.error(err);
+        this.toastService.show('Failed to connect to FinanceBot.', 'error');
+        this.messages.push({
+          sender: 'bot',
+          text: "I'm having trouble reaching my brain right now. Please check the server connection.",
+          timestamp: new Date()
+        });
+        this.loading = false;
+      }
+    });
   }
 
-  generateMockReply(text: string): string {
-    return `You asked: "${text}". I’ll analyze your transactions soon!`;
+  // 🔥 Helper: Converts Markdown to HTML for the chat bubble
+  private formatMessage(raw: string): string {
+    if (!raw) return '';
+    let formatted = raw;
+
+    // Bold: **text** -> <strong>text</strong>
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Newlines: \n -> <br>
+    formatted = formatted.replace(/\n/g, '<br>');
+
+    // Bullet points: - item -> • item
+    formatted = formatted.replace(/^- /gm, '• ');
+
+    return formatted;
   }
 }

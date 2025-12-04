@@ -1,8 +1,8 @@
-import { AuthService } from './../../services/auth.service';
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component } from '@angular/core';
 import { NgForm } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ToastService } from '../../services/toast.service';
+import { AuthService } from '../../services/auth.service'; // Ensure correct path
+import { ToastService } from '../../services/toast.service'; // Ensure correct path
 
 @Component({
   selector: 'app-login',
@@ -10,41 +10,42 @@ import { ToastService } from '../../services/toast.service';
   templateUrl: './login.component.html',
   styleUrl: './login.component.css'
 })
-export class LoginComponent implements OnInit, OnDestroy {
-
+export class LoginComponent {
   loading = false;
   error: string | null = null;
-  toast = { message: '', type: 'success' as 'success' | 'error', visible: false };
 
-  constructor(private router: Router,private toastService: ToastService,private auth: AuthService ) {}
+  constructor(
+    private auth: AuthService,       // 1. Inject the real AuthService
+    private router: Router,
+    private toastService: ToastService
+  ) {}
 
-  ngOnInit() {
-    // document.body.style.overflow = 'hidden'; 
-  }
-
-  ngOnDestroy() {
-    document.body.style.overflow = '';
-  }
-
-  
- 
   onSubmit(form: NgForm) {
-    if (form.invalid) return; // Keeps the 'required' validation
+    if (form.invalid) return;
     
     this.loading = true;
     this.error = null;
 
-    console.log('Mock Login Data:', form.value);
-
-    // Simulate network delay
-    setTimeout(() => {
-      // 1. Show Toast
-      this.toastService.show('✅ Welcome Back!', 'success', 3000);
-      this.auth.login();
-      // 2. Navigate immediately
-      this.router.navigate(['/dashboard']);
-      
-      this.loading = false;
-    }, 1000); 
+    // 2. Call the REAL API method
+    // form.value contains { email: "...", password: "..." }
+    this.auth.login(form.value).subscribe({
+      next: (user) => {
+        // ✅ Success: Token is already saved by AuthService
+        this.toastService.show(`Welcome back, ${user.name}!`, 'success');
+        
+        // Navigate to Dashboard
+        this.router.navigate(['/dashboard']);
+      },
+      error: (err) => {
+        // ❌ Error: Handle backend failure
+        // Backend usually sends error in err.error.error
+        this.error = err.error?.error || 'Invalid email or password.';
+        this.toastService.show(this.error || 'Login Failed', 'error');
+        this.loading = false;
+      },
+      complete: () => {
+        this.loading = false;
+      }
+    });
   }
 }

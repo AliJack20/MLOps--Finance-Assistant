@@ -1,4 +1,4 @@
-/* Custom Scrollbar for Webkit (Chrome/Safari/Edge) */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -6,14 +6,14 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155; /* slate-700 */
+  background: #334155;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569; /* slate-600 */
+  background: #475569;
 }
 
-/* Smooth fade-up for new messages */
+/* Slide Up Animation */
 @keyframes slideUpFade {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -23,5 +23,8 @@
   animation: slideUpFade 0.3s ease-out forwards;
 }
 
-/* Tailwind handles the blinking dots now via animate-bounce, 
-   so we can remove the old manual keyframes unless you want very specific timing */
+/* Formatting for Bot Responses (Targeting elements inside innerHTML) */
+:host ::ng-deep strong {
+  font-weight: 700;
+  color: #34d399; /* emerald-400 */
+}

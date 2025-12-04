@@ -1,8 +1,7 @@
-import { AuthService } from './../../services/auth.service';
+import { Component, OnInit } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { Component, ViewChild } from '@angular/core';
 import { MatSidenav } from '@angular/material/sidenav';
-// import { AuthService } from '../auth-service.service';
+import { AuthService } from '../../services/auth.service';
 import * as AOS from 'aos';
 
 @Component({
@@ -11,19 +10,23 @@ import * as AOS from 'aos';
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.css'
 })
-
-export class NavbarComponent {
+export class NavbarComponent implements OnInit {
   isSidenavVisible = false;
-  constructor(private router:Router,private auth: AuthService) {}
-  get isLoggedIn(): boolean {
-    return this.auth.isLoggedIn;
-  }
-  ngOnInit() {
-    // this.auth.isLoggedIn$.subscribe(val => this.isLoggedIn = val);
-    // this.auth.checkLogin();
-    AOS.init({ duration: 800, once: true }); // 👈 initial setup
+  isLoggedIn = false; // Local variable to hold the state
 
-     this.router.events.subscribe(event => {
+  constructor(private router: Router, private auth: AuthService) {}
+
+  ngOnInit() {
+    // 🔥 1. Subscribe to the Auth Service
+    // This updates 'isLoggedIn' instantly whenever the user logs in or out anywhere in the app
+    this.auth.isLoggedIn$.subscribe(status => {
+      this.isLoggedIn = status;
+    });
+
+    // 2. Initialize Animations
+    AOS.init({ duration: 800, once: true });
+
+    this.router.events.subscribe(event => {
       if (event instanceof NavigationEnd) {
         setTimeout(() => {
           AOS.refreshHard();
@@ -31,9 +34,18 @@ export class NavbarComponent {
       }
     });
   }
+
   logout() {
     this.auth.logout();
-    this.router.navigate(['/login']);
+    // The subscription above will automatically set isLoggedIn = false
+  }
+
+  toggleLogin() {
+    if (this.isLoggedIn) {
+      this.logout();
+    } else {
+      this.router.navigate(['/login']); // Redirect to login page
+    }
   }
 
   toggleSidenav() {
@@ -42,13 +54,5 @@ export class NavbarComponent {
 
   closeSidenav() {
     this.isSidenavVisible = false;
-  }
- // FIX: Update toggle to use the service methods instead of local state
-  toggleLogin() {
-    if (this.isLoggedIn) {
-      this.logout();
-    } else {
-      this.auth.login();
-    }
   }
 }
