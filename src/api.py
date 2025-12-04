@@ -1,10 +1,19 @@
 # src/api.py
-from fastapi import FastAPI, Response
+import os
+import logging
+from fastapi import FastAPI, Response, HTTPException
 from prometheus_fastapi_instrumentator import Instrumentator
 import pandas as pd
-from src.inference import load_model, predict  # use from src.inference
-import logging
+from pydantic import BaseModel
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+import asyncio
+
+# local imports
+from src.inference import load_model, predict  # your existing functions
+
+from src.rag_app.guardrails import Guardrails
+from src.rag_app.llm import llm_adapter  # the GradioLLM instance
+from src.rag_app.rag import RAG
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -16,14 +25,115 @@ app = FastAPI(title="Finance Assistant API", version="1.0")
 # Initialize Prometheus
 instrumentator = Instrumentator().instrument(app)
 
+# Globals (populated at startup)
+model = None
+rag = None
+hf_llm = None
+guardrails= None
+
+
+class QueryIn(BaseModel):
+    query: str
 
 @app.on_event("startup")
 async def startup_event():
-    """Load model once and expose metrics"""
-    global model
-    model = load_model()  # load from S3 inside inference.py
+    global model, rag, hf_llm
+
+    # 1) Load prediction model
+    try:
+        model = load_model()
+        logger.info("✅ Prediction model loaded")
+    except Exception:
+        model = None
+        logger.exception("Failed loading prediction model at startup")
+
+    # 2) Load/build RAG index
+    try:
+        rag = RAG(
+            docs_folder="src/rag_app/data",
+            index_path="src/rag_app/embeddings_cache/faiss_index"
+        )
+        await asyncio.to_thread(rag.build_index_if_missing)
+        logger.info("✅ RAG index ready")
+    except Exception:
+        rag = None
+        logger.exception("Failed to load/build RAG index at startup")
+
+    # 3) Use Gradio LLM Adapter
+    try:
+        from src.rag_app.llm import llm_adapter
+        hf_llm = llm_adapter
+        logger.info("✅ Gradio LLM adapter initialized")
+    except Exception:
+        hf_llm = None
+        logger.exception("Failed initializing llm_adapter")
+
+        # after hf_llm initialization in startup_event
+    try:
+        guardrails = Guardrails(embeddings=rag.embeddings if rag is not None else None,
+                           tox_threshold=0.3, hallucination_threshold=0.6)
+        # attach to module-global so endpoints can access
+        globals()["guardrails"] = guardrails
+        logger.info("✅ Guardrails initialized")
+    except Exception:
+        globals()["guardrails"] = None
+        logger.exception("Failed to initialize guardrails")
+
+    # 4) Expose metrics
     instrumentator.expose(app)
-    logger.info("✅ Model loaded and metrics endpoint exposed")
+    logger.info("✅ Startup complete")
+
+
+
+@app.post("/qa")
+async def qa(q: QueryIn):
+    global rag, hf_llm, guardrails
+
+    if rag is None:
+        raise HTTPException(status_code=503, detail="RAG index not available")
+
+    if hf_llm is None:
+        raise HTTPException(status_code=503, detail="LLM not available")
+
+    # 0. Input validation
+    if guardrails is not None:
+        ok, details = guardrails.validate_input(q.query)
+        if not ok:
+            # log event and return 400 (or choose to redact)
+            guardrails.log_event("input_violation", {"input": q.query, **details})
+            raise HTTPException(status_code=400, detail=f"Input rejected by guardrails: {details['rule']}")
+
+    try:
+        res = rag.query(q.query, k=4)
+        prompt = res["prompt"]
+        context = res["context"]
+
+        answer = await asyncio.to_thread(
+            hf_llm.generate,
+            prompt,
+            "",
+            256,
+            0.7
+        )
+
+        # Output moderation
+        if guardrails is not None:
+            ok_out, out_details = guardrails.moderate_output(answer, context=context)
+            if not ok_out:
+                guardrails.log_event("output_violation", {"prompt": prompt, "answer": answer, **out_details})
+                # Option 1: redact and return safe message
+                redacted = "[The model output was rejected by moderation policies. Please rephrase your query.]"
+                return {"answer": redacted, "context": context, "guardrail": out_details}
+                # Option 2: raise HTTPException(503, ...) to indicate failure
+                # raise HTTPException(status_code=503, detail="Output rejected by guardrails")
+
+        return {"answer": answer, "context": context}
+
+    except Exception:
+        logger.exception("QA request failed")
+        raise HTTPException(status_code=500, detail="LLM generation failed")
+
+
 
 
 @app.get("/health")
@@ -35,45 +145,30 @@ def health():
 @app.post("/predict")
 async def predict_api(payload: dict):
     try:
-        # Convert JSON → DataFrames
         df = pd.DataFrame([payload])
 
-        # --- FIX categorical mapping ---
-        # Map product_type same way as training
-        if "product_type" in df.columns:
-            mapping = {"Investment": 1, "OwnerOccupier": 0}
-            df["product_type"] = df["product_type"].map(mapping)
+        if "week" in df.columns:
+            df["week"] = pd.to_datetime(df["week"])
+            df["week_num"] = df["week"].view("int64") // 10**9
 
-        # Drop any non-numeric leftovers
         df = df.select_dtypes(include=["number"])
 
-        # Predict
         preds = model.predict(df)
-        return {"input": payload, "prediction": float(preds[0])}
+
+        return {
+            "input": payload,
+            "prediction_next_week": float(preds[0])
+        }
 
     except Exception as e:
         logger.exception("Prediction failed")
-        return {"error": str(e)}
-
+        return {"error": str(e)}    
     """
-    Accepts raw JSON input (flat dict) → runs prediction.
-    Example input:
     {
-      "full_sq": 89,
-      "life_sq": 50,
-      "floor": 9,
-      "product_type": "Investment"
+    "week": "04/01/2004",
+    "actual_spending": 6869.02
     }
     """
-    try:
-        # Convert single JSON input into a DataFrame
-        df = pd.DataFrame([payload])
-        preds = predict(model, df)
-        return {"prediction": float(preds[0])}
-
-    except Exception as e:
-        logger.exception("Prediction failed")
-        return {"error": str(e)}
 
 
 @app.get("/metrics")

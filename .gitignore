@@ -5,3 +5,6 @@ monitoring/grafana/
 MLOps pair.pem
 .github/workflows/cd.yml
 test_predictions.csv
+src/rag_app/data
+src/mlvenv
+embeddings_cache
