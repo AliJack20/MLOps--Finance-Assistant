@@ -7,20 +7,17 @@ import pandas as pd
 from pydantic import BaseModel
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 import asyncio
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Optional, Any
 
 # local imports
 from src.inference import load_model, predict  # your existing functions
 
+from src.rag_app.llm import classify_intent, extract_transactions, generate_answer  # the GradioLLM instance
+from rag_app.rag import RAG
 from src.rag_app.guardrails import Guardrails
 from src.rag_app.llm import llm_adapter  # the GradioLLM instance
 from src.rag_app.rag import RAG
-
-
-from src.rag_app.guardrails import (
-    validate_input,
-    moderate_output
-)
-
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +25,15 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI
 app = FastAPI(title="Finance Assistant API", version="1.0")
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # allow all origins (use specific domains in prod)
+    allow_credentials=True,
+    allow_methods=["*"],          # allow all HTTP methods
+    allow_headers=["*"],          # allow all headers
+)
 
 # Initialize Prometheus
 instrumentator = Instrumentator().instrument(app)
@@ -134,19 +140,7 @@ async def qa(q: QueryIn):
                 # Option 2: raise HTTPException(503, ...) to indicate failure
                 # raise HTTPException(status_code=503, detail="Output rejected by guardrails")
 
-        #OUTPUT VALIDATION GUARDAILS
-        mod = moderate_output(answer, context)
-        
-        return {
-            "answer": mod["safe_answer"],
-            "raw_answer": answer,
-            "moderation": {
-                "ok": mod["ok"],
-                "action": mod["action"],
-                "reasons": mod["reasons"]
-            },
-            "context": context
-        }
+        return {"answer": answer, "context": context}
 
     except Exception:
         logger.exception("QA request failed")
@@ -164,8 +158,9 @@ def health():
 @app.post("/predict")
 async def predict_api(payload: dict):
     try:
+        print("Received payload:", payload)
         df = pd.DataFrame([payload])
-
+        print("Input DataFrame:", df)
         if "week" in df.columns:
             df["week"] = pd.to_datetime(df["week"])
             df["week_num"] = df["week"].view("int64") // 10**9
