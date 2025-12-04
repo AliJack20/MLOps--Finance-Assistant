@@ -86,7 +86,7 @@ Use the provided data to answer the user.
 DATA CONTEXT:
 {data_context}
 """
-    return llm_adapter.generate(f"{user_text}\n\n{advisor_prompt}", max_tokens=200, temperature=0.7)
+    return llm_adapter.generate(f"{user_text}\n\n{advisor_prompt}", max_tokens=200, temperature=0.4)
 
 
 # --- TEST FLOW (only run when module executed directly) ---
