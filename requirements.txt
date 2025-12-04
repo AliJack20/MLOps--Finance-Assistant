@@ -27,8 +27,6 @@ docx
 faiss-cpu
 python-docx
 tqdm
-langchain
-langchain-community
 botocore>=1.29.0
 transformers>=4.30.0
 torch>=2.0.0
@@ -42,4 +40,4 @@ torch
 accelerate
 sentencepiece
 gradio
-sklearn
+scikit-learn
