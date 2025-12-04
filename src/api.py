@@ -122,20 +122,44 @@ async def api_extract(req: TextRequest):
         return []
 
 # --- 3. ANSWER ENDPOINT (The Speaker) ---
+# ... imports ...
+
 @app.post("/answer")
 async def api_answer(req: AnswerRequest):
     """
-    Node.js calls this to generate a natural language response.
-    - If 'req.data' is sent: It summarizes the DB results (RAG Mode).
-    - If 'req.data' is null: It just chats normally (Chat Mode).
+    Hybrid RAG Endpoint:
+    1. Node.js provides 'req.data' (MongoDB records).
+    2. Python retrieves 'rag_context' (Vector Search).
+    3. LLM combines both to answer.
     """
+    global rag
+
     try:
-        response_text = await asyncio.to_thread(generate_answer, req.text, req.data)
+        # 1. Retrieve General Knowledge (RAG)
+        # We always query RAG just in case the user asks for advice mixed with data
+        rag_context = ""
+        if rag is not None:
+            try:
+                # Query the vector store
+                # k=3 gets top 3 relevant documents
+                search_result = await asyncio.to_thread(rag.query, req.text, k=3)
+                rag_context = search_result["context"]
+            except Exception as e:
+                logger.warning(f"RAG lookup failed: {e}")
+        
+        # 2. Generate Answer (DB Data + RAG Context)
+        response_text = await asyncio.to_thread(
+            generate_answer, 
+            user_text=req.text, 
+            db_data=req.data, 
+            rag_context=rag_context
+        )
+        
         return {"response": response_text}
+
     except Exception as e:
         logger.exception("Answer generation failed")
-        return {"response": "I'm having trouble generating a response right now."}
-
+        return {"response": "I'm having trouble thinking right now. Please try again."}
 
 @app.get("/health")
 def health():
