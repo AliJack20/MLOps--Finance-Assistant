@@ -201,7 +201,7 @@ def main():
 
     logger.info("Training and Prompt Experimenting run finished. MLflow run info available.")
 
-    time.sleep(100)
+    #time.sleep(100)
 
     # DATA DRIFT evidently
     # train_df = load_csv_from_s3(S3_BUCKET, S3_TRAIN_KEY)
