@@ -27,8 +27,6 @@ docx
 faiss-cpu
 python-docx
 tqdm
-langchain
-langchain-community
 botocore>=1.29.0
 transformers>=4.30.0
 torch>=2.0.0
@@ -37,3 +35,9 @@ accelerate>=0.20.3
 huggingface_hub
 pydantic
 tf-keras
+transformers
+torch
+accelerate
+sentencepiece
+gradio
+scikit-learn

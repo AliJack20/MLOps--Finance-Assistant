@@ -6,11 +6,14 @@ from prometheus_fastapi_instrumentator import Instrumentator
 import pandas as pd
 from pydantic import BaseModel
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+import asyncio
 
 # local imports
 from src.inference import load_model, predict  # your existing functions
+
+from src.rag_app.guardrails import Guardrails
+from src.rag_app.llm import llm_adapter  # the GradioLLM instance
 from src.rag_app.rag import RAG
-from src.rag_app.llm import HuggingFaceLLM, call_hf_llm
 
 
 from src.rag_app.guardrails import (
@@ -33,84 +36,103 @@ instrumentator = Instrumentator().instrument(app)
 model = None
 rag = None
 hf_llm = None
+guardrails= None
 
 
 class QueryIn(BaseModel):
     query: str
 
-
 @app.on_event("startup")
 async def startup_event():
-    """
-    Load model once and expose metrics.
-    Also ensure the RAG index is built/loaded and instantiate the HF LLM wrapper.
-    """
     global model, rag, hf_llm
 
-    # 1) Load the classical ML model used by /predict
+    # 1) Load prediction model
     try:
-        model = load_model()  # load from S3 inside inference.py
+        model = load_model()
         logger.info("✅ Prediction model loaded")
-    except Exception as e:
+    except Exception:
         model = None
         logger.exception("Failed loading prediction model at startup")
 
-    # 2) Prepare RAG vectorstore (build if missing)
+    # 2) Load/build RAG index
     try:
-        rag = RAG(docs_folder="src/rag_app/data", index_path="src/rag_app/embeddings_cache/faiss_index")
-        rag.build_index_if_missing()
+        rag = RAG(
+            docs_folder="src/rag_app/data",
+            index_path="src/rag_app/embeddings_cache/faiss_index"
+        )
+        await asyncio.to_thread(rag.build_index_if_missing)
         logger.info("✅ RAG index ready")
-    except Exception as e:
+    except Exception:
         rag = None
         logger.exception("Failed to load/build RAG index at startup")
 
-    # 3) Instantiate HuggingFaceLLM wrapper
+    # 3) Use Gradio LLM Adapter
     try:
-        hf_model_id = os.getenv("HF_MODEL_ID", "TheBloke/finance-LLM-AWQ")
-        hf_llm = HuggingFaceLLM(model_id=hf_model_id)
-        logger.info(f"✅ HuggingFaceLLM initialized (model={hf_model_id})")
-    except Exception as e:
+        from src.rag_app.llm import llm_adapter
+        hf_llm = llm_adapter
+        logger.info("✅ Gradio LLM adapter initialized")
+    except Exception:
         hf_llm = None
-        logger.exception("Failed to initialize HuggingFaceLLM at startup")
+        logger.exception("Failed initializing llm_adapter")
 
-    # 4) Expose Prometheus metrics (Instrumentator already instrumented app)
+        # after hf_llm initialization in startup_event
+    try:
+        guardrails = Guardrails(embeddings=rag.embeddings if rag is not None else None,
+                           tox_threshold=0.3, hallucination_threshold=0.6)
+        # attach to module-global so endpoints can access
+        globals()["guardrails"] = guardrails
+        logger.info("✅ Guardrails initialized")
+    except Exception:
+        globals()["guardrails"] = None
+        logger.exception("Failed to initialize guardrails")
+
+    # 4) Expose metrics
     instrumentator.expose(app)
-    logger.info("✅ Startup complete and metrics exposed")
+    logger.info("✅ Startup complete")
+
 
 
 @app.post("/qa")
 async def qa(q: QueryIn):
-    """
-    RAG-backed QA endpoint:
-      - Uses RAG.query(...) to get both context and a prepared prompt
-      - Calls the HuggingFace LLM and returns the answer and the retrieved context
-    """
-    global rag, hf_llm
+    global rag, hf_llm, guardrails
+
     if rag is None:
         raise HTTPException(status_code=503, detail="RAG index not available")
 
     if hf_llm is None:
         raise HTTPException(status_code=503, detail="LLM not available")
 
-    #GUARDRAILS INTEGRATION INPUT VALIDATION
-    input_check = validate_input(q.query)
-    if not input_check["ok"]:
-        return {
-            "error": "Input rejected due to safety violations",
-            "reasons": input_check["reasons"]
-        }
-    
-    
+    # 0. Input validation
+    if guardrails is not None:
+        ok, details = guardrails.validate_input(q.query)
+        if not ok:
+            # log event and return 400 (or choose to redact)
+            guardrails.log_event("input_violation", {"input": q.query, **details})
+            raise HTTPException(status_code=400, detail=f"Input rejected by guardrails: {details['rule']}")
+
     try:
         res = rag.query(q.query, k=4)
         prompt = res["prompt"]
         context = res["context"]
 
-        # Prefer direct class call, fallback to helper if needed
-        try:
-            answer = hf_llm.generate(prompt, max_tokens=256)
-        except Exception:
-            answer = call_hf_llm(prompt, model_id=hf_llm.model_id)
+        answer = await asyncio.to_thread(
+            hf_llm.generate,
+            prompt,
+            "",
+            256,
+            0.7
+        )
+
+        # Output moderation
+        if guardrails is not None:
+            ok_out, out_details = guardrails.moderate_output(answer, context=context)
+            if not ok_out:
+                guardrails.log_event("output_violation", {"prompt": prompt, "answer": answer, **out_details})
+                # Option 1: redact and return safe message
+                redacted = "[The model output was rejected by moderation policies. Please rephrase your query.]"
+                return {"answer": redacted, "context": context, "guardrail": out_details}
+                # Option 2: raise HTTPException(503, ...) to indicate failure
+                # raise HTTPException(status_code=503, detail="Output rejected by guardrails")
 
         #OUTPUT VALIDATION GUARDAILS
         mod = moderate_output(answer, context)
@@ -126,9 +148,11 @@ async def qa(q: QueryIn):
             "context": context
         }
 
-    except Exception as e:
+    except Exception:
         logger.exception("QA request failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="LLM generation failed")
+
+
 
 
 @app.get("/health")
@@ -139,46 +163,31 @@ def health():
 
 @app.post("/predict")
 async def predict_api(payload: dict):
-    """
-    Predict endpoint for your classical ML model.
-    Expects a flat JSON dict matching feature names used at training time.
-    Example input:
-    {
-      "full_sq": 89,
-      "life_sq": 50,
-      "floor": 9,
-      "product_type": "Investment"
-    }
-    """
-    global model
-    if model is None:
-        return {"error": "Prediction model not loaded"}
-
     try:
-        # Convert JSON → DataFrame
         df = pd.DataFrame([payload])
 
-        # --- FIX categorical mapping ---
-        if "product_type" in df.columns:
-            mapping = {"Investment": 1, "OwnerOccupier": 0}
-            df["product_type"] = df["product_type"].map(mapping)
+        if "week" in df.columns:
+            df["week"] = pd.to_datetime(df["week"])
+            df["week_num"] = df["week"].view("int64") // 10**9
 
-        # Keep numeric columns only (match training preprocessing)
-        df_numeric = df.select_dtypes(include=["number"])
-        if df_numeric.shape[1] == 0:
-            raise ValueError("No numeric features found after preprocessing.")
+        df = df.select_dtypes(include=["number"])
 
-        # Predict
-        try:
-            preds = predict(model, df_numeric)
-        except Exception:
-            preds = model.predict(df_numeric)
+        preds = model.predict(df)
 
-        return {"input": payload, "prediction": float(preds[0])}
+        return {
+            "input": payload,
+            "prediction_next_week": float(preds[0])
+        }
 
     except Exception as e:
         logger.exception("Prediction failed")
-        return {"error": str(e)}
+        return {"error": str(e)}    
+    """
+    {
+    "week": "04/01/2004",
+    "actual_spending": 6869.02
+    }
+    """
 
 
 @app.get("/metrics")

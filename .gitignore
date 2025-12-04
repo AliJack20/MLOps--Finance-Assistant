@@ -5,9 +5,11 @@ mlruns/708024358232927332
 monitoring/grafana/
 MLOps pair.pem
 .github/workflows/cd.yml
+test_predictions.csv
 src/rag_app/data
 src/mlvenv
 src/reg.py
 src/test.csv
 src/train.csv
 
+embeddings_cache

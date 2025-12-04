@@ -22,154 +22,153 @@ try:
 except Exception:
     EMB_MODEL = None
     _HAS_EMB = False
+# rag_app/guardrails.py
+import re
+import logging
+from typing import Dict, Any, List, Tuple
+from prometheus_client import Counter
+import numpy as np
 
 logger = logging.getLogger("guardrails")
 
 # Prometheus counters
-INPUT_VIOLATIONS = Counter("guardrail_input_violations_total", "Number of input validation violations")
-OUTPUT_VIOLATIONS = Counter("guardrail_output_violations_total", "Number of output moderation violations")
-HALLUCINATION_WARNINGS = Counter("guardrail_hallucination_warnings_total", "Number of hallucination warnings")
+INPUT_VIOLATIONS = Counter("guardrail_input_violations_total", "Total input validation violations", ["rule"])
+OUTPUT_VIOLATIONS = Counter("guardrail_output_violations_total", "Total output moderation violations", ["rule"])
+INPUT_CHECKS = Counter("guardrail_input_checks_total", "Total input validation checks")
+OUTPUT_CHECKS = Counter("guardrail_output_checks_total", "Total output moderation checks")
 
-# Thresholds & patterns (tune them)
-HALLUCINATION_SIM_THRESHOLD = 0.55  # embedding cosine similarity threshold - tune for your data
-HALLUCINATION_LEXICAL_THRESHOLD = 0.15  # fraction of answer tokens found in context (lexical fallback)
-PROFANITY_FLAG = True
+# --- Simple PII regexes (extend as needed) ---
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
+_PHONE_RE = re.compile(r"(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}")
+_CREDIT_RE = re.compile(r"\b(?:\d[ -]*?){13,16}\b")  # naive CC-like pattern
+_SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 
-# Common PII regexes
-RE_EMAIL = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
-RE_PHONE = re.compile(r"\b(?:\+?\d{1,3}[ -]?)?(?:\(?\d{2,4}\)?[ -]?)?\d{6,10}\b")
-RE_CREDIT_CARD = re.compile(r"\b(?:\d[ -]*?){13,19}\b")
-RE_SSNLK = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")  # example SSN pattern
-
-# Prompt injection suspicious phrases
-PROMPT_INJECTION_PATTERNS = [
-    r"ignore (all )?previous instructions",
-    r"disregard (all )?previous",
-    r"forget (all )?previous",
-    r"override (the )?system",
-    r"pretend you are",
-    r"you are now",
-    r"from now on you will",
+# Prompt injection heuristics (case-insensitive)
+_PROMPT_INJECTION_PATTERNS = [
+    r"ignore (previous|above|before) instructions",
+    r"disregard (previous|above|before) instructions",
+    r"you are now (my|the) assistant",
+    r"treat the following as system prompt",
+    r"insert arbitrary code",
+    r"do not mention you're an AI",
 ]
+_PROMPT_INJECTION_RE = re.compile("|".join(_PROMPT_INJECTION_PATTERNS), re.IGNORECASE)
 
+# Toxicity simple wordlist (expand with your org's list)
+_TOXIC_WORDS = {"idiot", "stupid", "hate", "dumb", "kill", "terror"}  # minimal example
 
-def detect_pii(text: str) -> List[str]:
-    hits = []
-    if RE_EMAIL.search(text):
-        hits.append("email")
-    if RE_PHONE.search(text):
-        hits.append("phone")
-    if RE_CREDIT_CARD.search(text):
-        hits.append("credit_card_like")
-    if RE_SSNLK.search(text):
-        hits.append("ssn_like")
-    return hits
+class Guardrails:
+    def __init__(self, embeddings=None,
+                 tox_threshold: float = 0.3,
+                 hallucination_threshold: float = 0.6):
+        """
+        embeddings: optional Embeddings instance (from your RAG) used for semantic checks.
+        tox_threshold: optional threshold used if you later add a model-based toxicity scorer.
+        hallucination_threshold: cosine-similarity threshold below which a sentence is considered *unsupported*.
+        """
+        self.embeddings = embeddings
+        self.tox_threshold = tox_threshold
+        self.hallucination_threshold = hallucination_threshold
 
+    # -----------------------
+    # INPUT VALIDATION RULES
+    # -----------------------
+    def validate_input(self, text: str) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Run all input validation checks. Returns (ok, details).
+        ok==True -> input passes.
+        ok==False -> details contains rule and evidence.
+        """
+        INPUT_CHECKS.inc()
+        # 1) PII detection
+        pii_matches = []
+        for (name, regex) in [
+            ("email", _EMAIL_RE),
+            ("phone", _PHONE_RE),
+            ("ssn", _SSN_RE),
+            ("credit_card_like", _CREDIT_RE),
+        ]:
+            found = regex.findall(text)
+            if found:
+                pii_matches.append({"type": name, "examples": found[:3]})
 
-def detect_prompt_injection(text: str) -> List[str]:
-    hits = []
-    lower = text.lower()
-    for pat in PROMPT_INJECTION_PATTERNS:
-        if re.search(pat, lower):
-            hits.append(pat)
-    # also check for user embedding instructions like "system: ..." or long YAML blocks
-    if "system:" in lower or "### instructions" in lower:
-        hits.append("embedded_instruction_block")
-    return hits
+        if pii_matches:
+            rule = "pii_detected"
+            logger.warning("Input validation failed: %s -- %s", rule, pii_matches)
+            INPUT_VIOLATIONS.labels(rule=rule).inc()
+            return False, {"rule": rule, "evidence": pii_matches}
 
+        # 2) Prompt injection heuristics
+        if _PROMPT_INJECTION_RE.search(text):
+            rule = "prompt_injection"
+            evidence = _PROMPT_INJECTION_RE.findall(text)[:3]
+            logger.warning("Input validation failed: %s -- %s", rule, evidence)
+            INPUT_VIOLATIONS.labels(rule=rule).inc()
+            return False, {"rule": rule, "evidence": evidence}
 
-def validate_input(user_text: str) -> Dict[str, Any]:
-    """
-    Validate input: detect PII and prompt injection.
-    Returns a dict: {"ok": bool, "reasons": [...], "action": "reject"|"sanitize"|"allow"}
-    """
-    reasons = []
-    pii = detect_pii(user_text)
-    if pii:
-        reasons.append({"type": "pii", "details": pii})
-    inj = detect_prompt_injection(user_text)
-    if inj:
-        reasons.append({"type": "prompt_injection", "details": inj})
+        # passed basic checks
+        return True, {"rule": "ok"}
 
-    if reasons:
-        INPUT_VIOLATIONS.inc()
-        logger.warning("Input validation failed: %s", reasons)
-        return {"ok": False, "reasons": reasons, "action": "reject"}
-    return {"ok": True, "reasons": [], "action": "allow"}
+    # -----------------------
+    # OUTPUT MODERATION RULES
+    # -----------------------
+    def moderate_output(self, answer: str, context: str = "") -> Tuple[bool, Dict[str, Any]]:
+        """
+        Run moderation checks on model output. Returns (ok, details).
+        - toxicity check (wordlist; optional model integration)
+        - hallucination check: compare sentence embeddings to context embeddings and flag unsupported sentences
+        """
+        OUTPUT_CHECKS.inc()
+        # 1) Toxicity wordlist heuristic
+        ans_lower = answer.lower()
+        found_toxic = [w for w in _TOXIC_WORDS if w in ans_lower]
+        if found_toxic:
+            rule = "toxic_language"
+            OUTPUT_VIOLATIONS.labels(rule=rule).inc()
+            logger.warning("Output moderation failed: %s -- words=%s", rule, found_toxic)
+            return False, {"rule": rule, "evidence": found_toxic}
 
+        # 2) Hallucination detection via embeddings (requires embeddings configured)
+        if self.embeddings is not None and context:
+            # split answer into sentences (simple)
+            sentences = [s.strip() for s in re.split(r'[.?!]\s+', answer) if s.strip()]
+            if sentences:
+                # embed each sentence and the context (context may be multiple documents separated by ---)
+                try:
+                    ctx_vec = self.embeddings.embed_documents([context])
+                    # ctx_vec shape (1, D) -> use that
+                    ctx_vec = np.asarray(ctx_vec, dtype=np.float32)[0]
+                    unsupported = []
+                    for sent in sentences:
+                        sent_vec = self.embeddings.embed_query(sent)
+                        if sent_vec is None:
+                            continue
+                        # cosine similarity
+                        dot = np.dot(sent_vec, ctx_vec)
+                        denom = (np.linalg.norm(sent_vec) * np.linalg.norm(ctx_vec))
+                        sim = dot / denom if denom != 0 else 0.0
+                        if sim < self.hallucination_threshold:
+                            unsupported.append({"sentence": sent, "similarity": float(sim)})
+                    if unsupported:
+                        rule = "hallucination"
+                        OUTPUT_VIOLATIONS.labels(rule=rule).inc()
+                        logger.warning("Output moderation failed: %s -- %s", rule, unsupported[:3])
+                        return False, {"rule": rule, "evidence": unsupported}
+                except Exception as e:
+                    # if embedding check fails, log but do not block by default
+                    logger.exception("Embedding-based hallucination check failed: %s", e)
 
-def _lexical_overlap(answer: str, context: str) -> float:
-    """
-    Simple lexical overlap fraction: tokens in answer that appear in context.
-    """
-    a_tokens = set(re.findall(r"\w+", answer.lower()))
-    c_tokens = set(re.findall(r"\w+", context.lower()))
-    if not a_tokens:
-        return 0.0
-    overlap = len(a_tokens & c_tokens) / float(len(a_tokens))
-    return overlap
+        # If all checks passed
+        return True, {"rule": "ok"}
 
-
-def detect_hallucination(answer: str, context: str) -> Dict[str, Any]:
-    """
-    Return a dict describing hallucination risk.
-      - If embeddings available: compute cosine similarity between embeddings of answer and context.
-      - Else: use lexical overlap fallback.
-    """
-    if not context or context.strip() == "":
-        # No context — higher risk of hallucination.
-        HALLUCINATION_WARNINGS.inc()
-        return {"is_hallucination": True, "reason": "no_context"}
-
-    if _HAS_EMB:
-        try:
-            a_emb = EMB_MODEL.encode([answer])
-            c_emb = EMB_MODEL.encode([context])
-            sim = float(cosine_similarity(a_emb, c_emb).mean())
-            logger.debug("Embedding sim (answer,context)= %.4f", sim)
-            if sim < HALLUCINATION_SIM_THRESHOLD:
-                HALLUCINATION_WARNINGS.inc()
-                return {"is_hallucination": True, "score": sim, "method": "embedding"}
-            return {"is_hallucination": False, "score": sim, "method": "embedding"}
-        except Exception as e:
-            logger.exception("Embedding hallucination check failed: %s", e)
-
-    # fallback: lexical overlap
-    overlap = _lexical_overlap(answer, context)
-    logger.debug("Lexical overlap = %.4f", overlap)
-    if overlap < HALLUCINATION_LEXICAL_THRESHOLD:
-        HALLUCINATION_WARNINGS.inc()
-        return {"is_hallucination": True, "score": overlap, "method": "lexical"}
-    return {"is_hallucination": False, "score": overlap, "method": "lexical"}
-
-
-def moderate_output(answer: str, context: Optional[str] = "") -> Dict[str, Any]:
-    """
-    Moderate LLM output: profanity check + hallucination check.
-    Returns {"ok": bool, "reasons": [...], "action": "allow"|"warn"|"modify"|"block", "safe_answer": str}
-    """
-    reasons = []
-    action = "allow"
-    safe_answer = answer
-
-    # profanity check
-    if PROFANITY_FLAG and profanity.contains_profanity(answer):
-        reasons.append({"type": "profanity"})
-        action = "modify"
-        OUTPUT_VIOLATIONS.inc()
-        # simple sanitize: mask profane words
-        safe_answer = profanity.censor(answer)
-
-    # hallucination check (compare answer vs retrieved context)
-    try:
-        hall = detect_hallucination(answer, context or "")
-        if hall.get("is_hallucination"):
-            reasons.append({"type": "hallucination", "details": hall})
-            action = "warn" if action == "allow" else action
-            OUTPUT_VIOLATIONS.inc()
-    except Exception as e:
-        logger.exception("Hallucination check error: %s", e)
-
-    if reasons:
-        logger.warning("Output moderation flagged. reasons=%s action=%s", reasons, action)
-    return {"ok": (action == "allow"), "reasons": reasons, "action": action, "safe_answer": safe_answer}
+    # -----------------------
+    # Logging helper
+    # -----------------------
+    def log_event(self, event_type: str, detail: Dict[str, Any]):
+        """
+        Centralized guardrail event logging which you can expand to send to your monitoring/alerting system.
+        Logged via `logger` and Prometheus counters are incremented in rule checks above.
+        """
+        logger.info("Guardrail event: %s %s", event_type, detail)
+        # If you have a monitoring exporter, send event there as well.
+        # e.g., send to Datadog, Splunk, or other monitoring APIs here.
