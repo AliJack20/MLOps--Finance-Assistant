@@ -12,9 +12,13 @@ import io
 import boto3
 import logging
 from dotenv import load_dotenv
+import numpy as np
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
+
+S3_BUCKET = os.getenv("S3_BUCKET")
+S3_TRAIN_KEY = os.getenv("S3_TRAIN_KEY")
 
 # Columns known from the notebook that are boolean yes/no -> map to 0/1
 BOOLEAN_COLUMNS = [
@@ -37,9 +41,6 @@ logger = logging.getLogger(__name__)
 
 # Columns to label encode (example: product_type, ecology in notebook)
 LABEL_COLUMNS = ["product_type", "ecology"]
-
-S3_BUCKET = os.getenv("S3_BUCKET")
-S3_TRAIN_KEY = os.getenv("S3_TRAIN_KEY")
 
 
 def load_csv_from_s3(bucket: str, key: str) -> pd.DataFrame:
@@ -73,18 +74,36 @@ def load_csv(path: str) -> pd.DataFrame:
 
 def drop_na(df: pd.DataFrame) -> pd.DataFrame:
     """Drop rows with NA values (same as notebook)."""
-    target_col = "price_doc"  # Replace with actual target column name
+    target_col = "predicted_spending_next_week"  # Replace with actual target column name
     # Keep first 4 columns plus target
-    cols_to_keep = df.columns[:4].tolist() + [target_col]
-    df = df[cols_to_keep]
+    #cols_to_keep = df.columns[:4].tolist() + [target_col]
+    #df = df[cols_to_keep]
     return df.dropna(axis=0)
 
 
 def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply basic cleaning used in notebook."""
-    # Drop 'sub_area' if present (not useful per notebook)
-    if "sub_area" in df.columns:
-        df = df.drop(columns=["sub_area"])
+    # Ensure week is datetime (coerce invalid -> NaT)
+    df["week"] = pd.to_datetime(df["week"], errors="coerce")
+
+    # Drop rows with missing week or missing target/important features
+    # (adjust the columns as per your dataset)
+    df = df.dropna(subset=["week", "actual_spending", "predicted_spending_next_week"])
+
+    # Sort by week to preserve chronological order
+    df = df.sort_values("week").reset_index(drop=True)
+
+    # Create a simple sequential week index (0,1,2,...). This is numeric and stable.
+    df["week_num"] = np.arange(len(df), dtype=np.int64)
+
+    # If you prefer epoch seconds instead of simple index:
+    # df["week_ts"] = df["week"].astype("int64") // 10**9
+
+    # Ensure numeric types for numeric columns (convert nullable pandas dtypes to numpy floats)
+    numeric_cols = ["week_num", "actual_spending", "predicted_spending_next_week"]
+    for c in numeric_cols:
+        # convert to float64 (safe for sklearn)
+        df[c] = pd.to_numeric(df[c], errors="coerce").astype(np.float64)
+
     return df
 
 
@@ -110,7 +129,7 @@ def map_booleans(
 
 
 def prepare_features_target(
-    df: pd.DataFrame, target_col: str = "price_doc"
+    df: pd.DataFrame, target_col: str = "predicted_spending_next_week"
 ) -> Tuple[pd.DataFrame, pd.Series]:
     """
     Split into features X and target y.
@@ -126,15 +145,29 @@ def prepare_features_target(
 
 
 def full_pipeline_from_csv(
-    path: str, target_col: str = "price_doc"
+    path: str, target_col: str = "predicted_spending_next_week"
 ) -> Tuple[pd.DataFrame, pd.Series]:
     """Complete ingestion -> cleaned (X, y) from CSV path."""
-    df = load_csv("s3://mlops-financeai-s3-bucket /datasets/train.csv")
+    df = load_csv("s3://mlops-financeai-s3-bucket /datasets/new_reg_train.csv")
     df = drop_na(df)
     df = basic_clean(df)
-    df = encode_labels(df)
-    df = map_booleans(df)
-    X, y = prepare_features_target(df, target_col=target_col)
+
+    # Choose features and target used in training
+    feature_cols = ["week_num", "actual_spending"]  # adjust if you use week_ts or other engineered features
+    target_col = "predicted_spending_next_week"
+
+    # Ensure columns exist
+    assert set(feature_cols + [target_col]).issubset(df.columns), "Missing columns in df"
+
+    # Fill or drop NaNs (here we drop any rows with NaN in selected cols)
+    df = df.dropna(subset=feature_cols + [target_col])
+
+    X = df[feature_cols].astype(np.float64).to_numpy()   # shape (n_samples, n_features), dtype float64
+    y = df[target_col].astype(np.float64).to_numpy()     # shape (n_samples,), dtype float64
+
+    #df = encode_labels(df)
+    #df = map_booleans(df)
+    #X, y = prepare_features_target(df, target_col=target_col)
     return X, y
 
 
@@ -142,7 +175,7 @@ if __name__ == "__main__":
     # Quick local test (not executed in production)
     import os
 
-    p = os.getenv("TRAIN_CSV", "data/train.csv")
+    p = os.getenv("TRAIN_CSV", "data/train_spending.csv")
     print("Loading:", p)
     X, y = full_pipeline_from_csv(p)
     print("X shape:", X.shape, "y shape:", y.shape)

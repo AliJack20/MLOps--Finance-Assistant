@@ -1,0 +1,65 @@
+/* 🔹 Base Calendar Styles */
+::ng-deep .fc {
+  color: #f3f4f6; /* text-gray-100 */
+  font-family: inherit;
+}
+
+/* Header & Borders */
+::ng-deep .fc-theme-standard td, 
+::ng-deep .fc-theme-standard th {
+  border-color: #374151; /* gray-700 */
+}
+
+/* 🔹 FIX: White Spot & Header Backgrounds */
+::ng-deep .fc-col-header-cell,
+::ng-deep .fc-timegrid-axis {
+  background-color: #1f2937 !important; /* gray-800 */
+  color: #9ca3af; /* gray-400 */
+  padding: 8px 0;
+}
+
+/* 🔹 Month View Specifics */
+::ng-deep .fc-daygrid-day-number {
+  color: #e5e7eb; /* gray-200 */
+  text-decoration: none;
+}
+::ng-deep .fc-daygrid-day:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+
+/* 🔹 THE MAGIC SWITCH 🔹 */
+
+/* 1. In Month View: Hide Week Details */
+::ng-deep .fc-dayGridMonth-view .week-view-only {
+  display: none !important;
+}
+
+/* 2. In Week View: Hide Month Sums */
+::ng-deep .fc-timeGridWeek-view .month-view-only {
+  display: none !important;
+}
+
+/* 🔹 Event Styling Resets */
+::ng-deep .fc-event {
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+::ng-deep .fc-event:hover {
+  transform: scale(1.02);
+  z-index: 50 !important; /* Bring to front on hover */
+}
+
+/* Remove default FullCalendar event styling */
+::ng-deep .fc-h-event, 
+::ng-deep .fc-v-event {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+/* 🔹 Time Axis Labels (Left Side Times) */
+::ng-deep .fc-timegrid-slot-label-cushion,
+::ng-deep .fc-timegrid-axis-cushion {
+  color: #9ca3af; /* gray-400 */
+}

@@ -1,0 +1,66 @@
+<!-- navbar.component.html -->
+<div class="bg-gray-900 border-b border-gray-700 px-6 py-4 flex justify-between items-center sticky w-full top-0 z-50 text-white">
+  
+  <!-- Logo Area -->
+  <div class="flex items-center gap-2 text-green-400 font-bold text-xl md:text-2xl cursor-pointer" >
+    <mat-icon class="scale-150">account_balance_wallet</mat-icon> 
+    FinanceBot
+  </div>
+
+  <!-- Mobile Menu Button -->
+  <div class="block md:hidden">
+    <button mat-icon-button (click)="toggleSidenav()">
+      <mat-icon>menu</mat-icon>
+    </button>
+  </div>
+
+  <!-- Desktop Links -->
+  <div class="flex-row gap-10 hidden md:flex items-center">
+    
+    <!-- Public Links (Not Logged In) -->
+    <ng-container *ngIf="!isLoggedIn; else loggedInLinks">
+      <a routerLink="/" routerLinkActive="text-green-400" [routerLinkActiveOptions]="{ exact: true }" class="hover:text-green-400 transition-colors">Home</a>
+      <a routerLink="/updates" routerLinkActive="text-green-400" class="hover:text-green-400 transition-colors">Updates</a>
+      <a routerLink="/faq" routerLinkActive="text-green-400" class="hover:text-green-400 transition-colors">FAQ</a>
+      
+      <!-- Login Button Style -->
+      <a routerLink="/login" class="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-500 transition-colors font-semibold">
+        Login
+      </a>
+    </ng-container>
+
+    <!-- Private Links (Logged In) -->
+    <ng-template #loggedInLinks>
+      <a routerLink="/dashboard" routerLinkActive="text-green-400" class="hover:text-green-400 transition-colors">Dashboard</a>
+      <a routerLink="/calendar" routerLinkActive="text-green-400" class="hover:text-green-400 transition-colors">Calendar</a>
+      <a routerLink="/chat" routerLinkActive="text-green-400" class="hover:text-green-400 transition-colors">AI Chat</a>
+      <a routerLink="/profile" routerLinkActive="text-green-400" class="hover:text-green-400 transition-colors">Profile</a>
+      <button (click)="logout()" class="text-red-400 hover:text-red-300 transition-colors">Logout</button>
+    </ng-template>
+  </div>
+</div>
+
+<!-- Mobile Sidenav -->
+<mat-sidenav-container *ngIf="isSidenavVisible" class="md:hidden fixed top-0 left-0 w-full h-full z-40 bg-transparent">
+  <mat-sidenav mode="over" opened class="w-64 p-6 bg-gray-900 text-white border-r border-gray-700" (closedStart)="closeSidenav()">
+    <div class="flex flex-col gap-6 text-lg">
+      <div class="text-green-400 font-bold text-2xl mb-4 border-b border-gray-700 pb-2">Menu</div>
+      
+      <ng-container *ngIf="!isLoggedIn; else loggedInMobileLinks">
+        <a routerLink="/" (click)="closeSidenav()">Home</a>
+        <a routerLink="/updates" (click)="closeSidenav()">Updates</a>
+        <a routerLink="/faq" (click)="closeSidenav()">FAQ</a>
+        <a routerLink="/login" (click)="closeSidenav()" class="text-green-400">Login</a>
+      </ng-container>
+
+      <ng-template #loggedInMobileLinks>
+        <a routerLink="/dashboard" (click)="closeSidenav()">Dashboard</a>
+        <a routerLink="/calendar" (click)="closeSidenav()">Calendar</a>
+        <a routerLink="/chat" (click)="closeSidenav()">AI Chat</a>
+        <a routerLink="/profile" (click)="closeSidenav()">Profile</a>
+        <button (click)="logout()" class="text-left text-red-400">Logout</button>
+      </ng-template>
+    </div>
+  </mat-sidenav>
+  <mat-sidenav-content class="bg-black/50 backdrop-blur-sm h-full w-full" (click)="closeSidenav()"></mat-sidenav-content>
+</mat-sidenav-container>
