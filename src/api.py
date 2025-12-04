@@ -11,6 +11,7 @@ import asyncio
 # local imports
 from src.inference import load_model, predict  # your existing functions
 
+from src.rag_app.guardrails import Guardrails
 from src.rag_app.llm import llm_adapter  # the GradioLLM instance
 from src.rag_app.rag import RAG
 
@@ -28,6 +29,7 @@ instrumentator = Instrumentator().instrument(app)
 model = None
 rag = None
 hf_llm = None
+guardrails= None
 
 
 class QueryIn(BaseModel):
@@ -66,6 +68,17 @@ async def startup_event():
         hf_llm = None
         logger.exception("Failed initializing llm_adapter")
 
+        # after hf_llm initialization in startup_event
+    try:
+        guardrails = Guardrails(embeddings=rag.embeddings if rag is not None else None,
+                           tox_threshold=0.3, hallucination_threshold=0.6)
+        # attach to module-global so endpoints can access
+        globals()["guardrails"] = guardrails
+        logger.info("✅ Guardrails initialized")
+    except Exception:
+        globals()["guardrails"] = None
+        logger.exception("Failed to initialize guardrails")
+
     # 4) Expose metrics
     instrumentator.expose(app)
     logger.info("✅ Startup complete")
@@ -74,7 +87,7 @@ async def startup_event():
 
 @app.post("/qa")
 async def qa(q: QueryIn):
-    global rag, hf_llm
+    global rag, hf_llm, guardrails
 
     if rag is None:
         raise HTTPException(status_code=503, detail="RAG index not available")
@@ -82,26 +95,44 @@ async def qa(q: QueryIn):
     if hf_llm is None:
         raise HTTPException(status_code=503, detail="LLM not available")
 
+    # 0. Input validation
+    if guardrails is not None:
+        ok, details = guardrails.validate_input(q.query)
+        if not ok:
+            # log event and return 400 (or choose to redact)
+            guardrails.log_event("input_violation", {"input": q.query, **details})
+            raise HTTPException(status_code=400, detail=f"Input rejected by guardrails: {details['rule']}")
+
     try:
-        # 1. RAG retrieve context + prompt
         res = rag.query(q.query, k=4)
         prompt = res["prompt"]
         context = res["context"]
 
-        # 2. Call your LLM (blocking → run in thread)
         answer = await asyncio.to_thread(
             hf_llm.generate,
-            prompt,      # user_message
-            "",          # system_prompt
-            256,         # max_tokens
-            0.7          # temp
+            prompt,
+            "",
+            256,
+            0.7
         )
+
+        # Output moderation
+        if guardrails is not None:
+            ok_out, out_details = guardrails.moderate_output(answer, context=context)
+            if not ok_out:
+                guardrails.log_event("output_violation", {"prompt": prompt, "answer": answer, **out_details})
+                # Option 1: redact and return safe message
+                redacted = "[The model output was rejected by moderation policies. Please rephrase your query.]"
+                return {"answer": redacted, "context": context, "guardrail": out_details}
+                # Option 2: raise HTTPException(503, ...) to indicate failure
+                # raise HTTPException(status_code=503, detail="Output rejected by guardrails")
 
         return {"answer": answer, "context": context}
 
     except Exception:
         logger.exception("QA request failed")
         raise HTTPException(status_code=500, detail="LLM generation failed")
+
 
 
 
