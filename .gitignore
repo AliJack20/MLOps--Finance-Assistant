@@ -4,3 +4,4 @@ mlruns/708024358232927332
 monitoring/grafana/
 MLOps pair.pem
 .github/workflows/cd.yml
+test_predictions.csv
