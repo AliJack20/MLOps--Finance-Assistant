@@ -16,7 +16,7 @@ jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
     env:
-      CI_MODE: "1"     # ensures dummy model loads (no S3)
+      CI_MODE: "1"     # ensures dummy model loads (no S3)s
       ENV: "ci"
 
     steps:
