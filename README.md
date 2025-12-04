@@ -1,3 +1,4 @@
+By Rafay Ahmed
 MLOps — Finance Assistant
 
 🚀 One-line Elevator Pitch
