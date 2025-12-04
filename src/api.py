@@ -15,7 +15,7 @@ from src.inference import load_model, predict  # your existing functions
 
 from src.rag_app.llm import classify_intent, extract_transactions, generate_answer  # the GradioLLM instance
 from rag_app.rag import RAG
-
+from src.rag_app.guardrails import Guardrails
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ instrumentator = Instrumentator().instrument(app)
 model = None
 rag = None
 hf_llm = None
+guardrails= None
 
 
 class QueryIn(BaseModel):
@@ -76,6 +77,17 @@ async def startup_event():
     except Exception:
         hf_llm = None
         logger.exception("Failed initializing llm_adapter")
+
+        # after hf_llm initialization in startup_event
+    try:
+        guardrails = Guardrails(embeddings=rag.embeddings if rag is not None else None,
+                           tox_threshold=0.3, hallucination_threshold=0.6)
+        # attach to module-global so endpoints can access
+        globals()["guardrails"] = guardrails
+        logger.info("✅ Guardrails initialized")
+    except Exception:
+        globals()["guardrails"] = None
+        logger.exception("Failed to initialize guardrails")
 
     # 4) Expose metrics
     instrumentator.expose(app)
