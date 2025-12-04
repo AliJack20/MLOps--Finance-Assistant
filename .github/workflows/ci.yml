@@ -16,7 +16,7 @@ jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
     env:
-      CI_MODE: "1"     # ensures dummy model loads (no S3)
+      CI_MODE: "1"     # ensures dummy model loads (no S3)s
       ENV: "ci"
 
     steps:
@@ -34,12 +34,23 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Free disk space
+        run: |
+          echo "Cleaning up space..."
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf $AGENT_TOOLSDIRECTORY
+          sudo docker system prune -af
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+
       # -------------------------
       # 3️⃣ Install dependencies
       # -------------------------
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip cache purge
           pip install -r requirements.txt
           pip install black ruff
           echo "✅ Dependencies installed."

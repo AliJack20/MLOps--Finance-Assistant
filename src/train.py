@@ -26,6 +26,8 @@ import time
 import numpy as np
 from rag_app.rag import RAG
 from rag_app.llm import get_answer, get_intent
+import importlib
+from pathlib import Path
 
 from data_ingestion import full_pipeline_from_csv
 from aws_utils import start_ec2_instance, stop_ec2_instance, run_docker_commands_on_ec2
@@ -37,6 +39,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from experiments.scripts.run_prompts import run_all_prompts
 
 # Hyperparameters (from notebook)
 N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 100))
@@ -119,13 +122,14 @@ def main():
     #time.sleep(100)
 
     # Get LLM answer
-    user_input = "What are goverment bonds"
-    intent_json = get_intent(user_input)
-    print("Detected Intent:", intent_json)
-    final_response = get_answer(user_input, rag_prompt)
-    print("Bot Answer:", final_response)
+    # user_input = "What are goverment bonds"
+    # intent_json = get_intent(user_input)
+    # print("Detected Intent:", intent_json)
+    # final_response = get_answer(user_input, rag_prompt)
+    # print("Bot Answer:", final_response)
+    # logger.info("Bot Answer: %s", final_response)
 
-    time.sleep(100)
+    #time.sleep(100)
 
     with mlflow.start_run():
         logger.info("Training ExtraTreesRegressor (n_estimators=%s)", N_ESTIMATORS)
@@ -155,6 +159,34 @@ def main():
         # Log model in MLflow (this will store artifacts to the MLflow tracking uri -> S3)
         mlflow.sklearn.log_model(model, name="model")
 
+        try:
+            logger.info("Starting prompt engineering experiments (run_all_prompts)...")
+            # choose evaluation file and output directory (override with env if desired)
+            EVAL_PATH = os.getenv("PROMPT_EVAL_JSONL", "data/eval.json")
+            PROMPT_OUT = os.getenv("PROMPT_RESULTS_DIR", "results/prompt_runs")
+
+            # If you want context in prompts, set include_context=True
+            produced_files = run_all_prompts(
+                eval_path=EVAL_PATH,
+                out_base=PROMPT_OUT,
+                include_context=True,   # set True to inject RAG context into prompts that have {context}
+                max_tokens=256,
+                temp=0.2
+            )
+
+            # Log artifacts to MLflow (optional nested run)
+            # Start a nested MLflow run so prompt experiments are recorded under the same top-level run
+            with mlflow.start_run(nested=True, run_name="prompt_experiments"):
+                mlflow.log_param("prompt_eval_path", EVAL_PATH)
+                for f in produced_files:
+                    mlflow.log_artifact(f, artifact_path="prompt_results")
+            logger.info("Prompt experiments finished. Artifacts: %s", produced_files)
+
+        except Exception as e:
+            logger.exception("Prompt experiments failed: %s", e)
+        
+        #exit()
+
         # Also save a copy to a temp file and upload to S3 as latest_model.pkl for inference script
         with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as tf:
             joblib.dump(model, tf.name)
@@ -167,7 +199,7 @@ def main():
         # Log S3 location as tag/artifact
         mlflow.set_tag("s3_model_path", f"s3://{S3_BUCKET}/{S3_MODEL_KEY}")
 
-    logger.info("Training run finished. MLflow run info available.")
+    logger.info("Training and Prompt Experimenting run finished. MLflow run info available.")
 
     #time.sleep(100)
 
