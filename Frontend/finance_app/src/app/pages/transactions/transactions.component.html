@@ -36,13 +36,19 @@
         </div>
 
         <!-- Category -->
-        <div>
-          <label class="block text-xs opacity-70 mb-1">Category</label>
-          <select [(ngModel)]="filters.category" (change)="applyFilters()"
-                  class="w-full p-3 rounded-lg bg-[#374151] text-white border-none focus:ring-1 focus:ring-blue-500 text-sm">
-            <option *ngFor="let cat of categories" [value]="cat">{{ cat }}</option>
-          </select>
-        </div>
+       <div>
+  <label class="block text-xs opacity-70 mb-1">Category</label>
+  <select [(ngModel)]="filters.category" (change)="applyFilters()"
+          class="w-full p-3 rounded-lg bg-[#374151] text-white border-none focus:ring-1 focus:ring-blue-500 text-sm">
+    
+    <option value="All">All</option>
+    
+    <option *ngFor="let cat of categories" [value]="cat.name">
+      {{ cat.name }}
+    </option>
+    
+  </select>
+</div>
 
         <!-- Year -->
         <div>
@@ -146,7 +152,7 @@
                           title="Edit">
                     <mat-icon class="scale-75">edit</mat-icon>
                   </button>
-                  <button (click)="deleteTransaction(t.id)" 
+                  <button (click)="deleteTransaction(t._id!=null ? t._id : '')" 
                           class="p-1.5 rounded-full text-red-400 hover:bg-red-400/10 hover:text-red-300 transition-colors" 
                           title="Delete">
                     <mat-icon class="scale-75">delete</mat-icon>
@@ -169,13 +175,12 @@
   </div>
 
   <!-- Shared Add/Edit Modal -->
-  <app-transaction-modal 
-    [visible]="showModal" 
-    [transactionData]="selectedTransaction"
-    (close)="showModal = false" 
-    (save)="handleSaveTransaction($event)">
-  </app-transaction-modal>
-
+ <app-transaction-modal 
+  [visible]="showModal" 
+  [categories]="categories"  [transactionData]="selectedTransaction"
+  (close)="showModal = false" 
+  (save)="handleSaveTransaction($event)">
+</app-transaction-modal>
   <!-- Delete Confirmation Modal (Custom Popup) -->
   <div *ngIf="showDeleteModal" 
        class="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-[60] animate-fade-in">

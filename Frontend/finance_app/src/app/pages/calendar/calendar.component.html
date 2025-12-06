@@ -1,6 +1,5 @@
 <div class="min-h-screen p-6 bg-[#0f172a] text-white">
   
-  <!-- Header -->
   <div class="flex justify-between items-center mb-6">
     <div>
       <h1 class="text-3xl font-bold text-green-400">Smart Calendar</h1>
@@ -11,45 +10,37 @@
     </button>
   </div>
 
-  <!-- Calendar Card -->
   <div class="p-6 rounded-2xl shadow-2xl border border-gray-800 bg-[#1e293b]">
     <full-calendar [options]="calendarOptions"></full-calendar>
   </div>
 
-  <!-- 🔹 DAY LOG MODAL -->
-  <div *ngIf="showModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4" (click)="closeModal()">
+  <div *ngIf="showDayModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex justify-center items-center z-50 p-4" (click)="closeDayModal()">
     
-    <!-- Modal Content (Stop propagation to prevent closing when clicking inside) -->
     <div class="bg-gray-900 w-full max-w-md rounded-2xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" (click)="$event.stopPropagation()">
       
-      <!-- Modal Header -->
       <div class="p-5 border-b border-gray-800 bg-gray-800/50 flex justify-between items-start">
         <div>
           <h2 class="text-xl font-bold text-white">{{ selectedDateStr }}</h2>
           <p class="text-sm font-medium mt-1">
             Net Total: 
             <span [ngClass]="getAmountColor(dailyNet)">
-              {{ dailyNet >= 0 ? '+' : '' }}${{ dailyNet | number:'1.2-2' }}
+              {{ dailyNet >= 0 ? '+' : '' }}{{ dailyNet | currency }}
             </span>
           </p>
         </div>
-        <button class="text-gray-400 hover:text-white" (click)="closeModal()">
+        <button class="text-gray-400 hover:text-white" (click)="closeDayModal()">
           ✕
         </button>
       </div>
 
-      <!-- Transaction List -->
       <div class="p-5 overflow-y-auto flex-1">
         
-        <!-- Empty State -->
         <div *ngIf="selectedDayTransactions.length === 0" class="text-center py-8 text-gray-500">
           <p>No transactions found for this day.</p>
         </div>
 
-        <!-- List Items -->
         <div *ngFor="let t of selectedDayTransactions" class="flex justify-between items-center py-3 border-b border-gray-800 last:border-0 hover:bg-gray-800/30 px-2 rounded-lg transition">
           <div class="flex items-center gap-3">
-            <!-- Icon based on type -->
             <div [ngClass]="t.type === 'income' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'" 
                  class="w-10 h-10 rounded-full flex items-center justify-center text-lg">
               {{ t.type === 'income' ? '↓' : '↑' }}
@@ -60,19 +51,27 @@
             </div>
           </div>
           <span [ngClass]="getAmountColor(t.amount)" class="font-bold">
-            {{ t.amount >= 0 ? '+' : '' }}{{ t.amount | currency }}
+            {{ t.amount | currency }}
           </span>
         </div>
       </div>
 
-      <!-- Modal Footer -->
       <div class="p-4 border-t border-gray-800 bg-gray-900 flex justify-end">
-        <button class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-lg transition">
+        <button (click)="openAddModal()" 
+                class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded-lg transition">
           + Add Transaction
         </button>
       </div>
 
     </div>
   </div>
+
+  <app-transaction-modal 
+    [visible]="showAddModal"
+    [categories]="categories"
+    [transactionData]="{ date: currentDateKey }" 
+    (close)="closeAddModal()"
+    (save)="handleNewTransaction($event)">
+  </app-transaction-modal>
 
 </div>

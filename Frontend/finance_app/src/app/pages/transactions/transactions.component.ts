@@ -1,15 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { ToastService } from '../../services/toast.service';
-
-interface Transaction {
-  id: number;
-  title: string;
-  amount: number;
-  date: string; // ISO format 'YYYY-MM-DD'
-  category: string;
-  type: 'income' | 'expense';
-  backgroundColor?: string;
-}
+import { FinancialAPIService } from '../../services/finance-api.service'; // Check file name matches your folder
+import { AuthService } from '../../services/auth.service';
+import { Financial, FilterResponse, CategoryColor } from '../../models/api_models';
 
 @Component({
   selector: 'app-transactions',
@@ -19,18 +12,16 @@ interface Transaction {
 })
 export class TransactionsComponent implements OnInit {
 
-  // 1. Data
-  allTransactions: Transaction[] = [
-    { id: 1, title: 'Rent', amount: -1200, date: '2025-10-01', category: 'Rent', type: 'expense' },
-    { id: 2, title: 'Freelance Project', amount: 1500, date: '2025-10-03', category: 'Income', type: 'income' },
-    { id: 3, title: 'Groceries', amount: -85.50, date: '2025-10-05', category: 'Groceries', type: 'expense' },
-    { id: 4, title: 'Netflix', amount: -15.99, date: '2025-10-07', category: 'Entertainment', type: 'expense' },
-    { id: 5, title: 'Salary', amount: 4200, date: '2025-10-15', category: 'Income', type: 'income' },
-  ];
+  // 1. Data Containers
+  allTransactions: Financial[] = [];
+  filteredTransactions: Financial[] = [];
+  loading = false;
+  
+  // 2. Dynamic Filters
+  categories: CategoryColor[] = []; // Stores {name, color}
+  years: string[] = ['All'];
 
-  filteredTransactions: Transaction[] = [];
-
-  // 2. Filters
+  // 3. Filter State
   filters = {
     searchText: '',
     category: 'All',
@@ -42,82 +33,145 @@ export class TransactionsComponent implements OnInit {
     year: 'All'
   };
 
-  categories = ['All', 'Rent', 'Groceries', 'Entertainment', 'Income', 'Health', 'Food'];
-  years = ['All', '2024', '2025'];
-
-  // 3. Modal States
+  // 4. Modal States
   showModal = false;
-  selectedTransaction: Transaction | null = null; // Data to pass to modal
-
-  // 4. Delete Confirmation State
+  selectedTransaction: Financial | null = null;
+  
+  // 5. Delete State
   showDeleteModal = false;
-  transactionToDeleteId: number | null = null;
+  transactionToDeleteId: string | null = null;
 
-  constructor(private toastService: ToastService) {}
+  constructor(
+    private toastService: ToastService,
+    private financialService: FinancialAPIService,
+    private auth: AuthService
+  ) {}
 
   ngOnInit(): void {
-    this.applyFilters();
+    const userId = this.auth.getUserId();
+    if (userId) {
+      this.loadFilters(userId);
+      this.fetchTransactions(userId);
+    }
+  }
+
+  // --- API: Load Data ---
+  fetchTransactions(userId: string) {
+    this.loading = true;
+    this.financialService.getAllByUser(userId).subscribe({
+      next: (res: any) => {
+        // Backend returns object with 'financials' array
+        this.allTransactions = res.financials || []; 
+        this.applyFilters();
+        this.loading = false;
+      },
+      error: () => {
+        this.toastService.show('Failed to load transactions', 'error');
+        this.loading = false;
+      }
+    });
+  }
+
+  loadFilters(userId: string) {
+    this.financialService.getFilters(userId).subscribe({
+      next: (data: FilterResponse) => {
+        // 1. Setup default colors
+        const catMap = new Map<string, string>();
+        catMap.set('Food', '#f97316');
+        catMap.set('Rent', '#dc2626');
+        catMap.set('Income', '#16a34a');
+        catMap.set('Utilities', '#3b82f6');
+
+        // 2. Merge from current data (so DB colors persist)
+        this.allTransactions.forEach(t => {
+            if (t.category) {
+                catMap.set(t.category, t.color || '#cccccc');
+            }
+        });
+
+        // 3. Convert to Array for the Modal
+        this.categories = Array.from(catMap.entries())
+                               .map(([name, color]) => ({ name, color }))
+                               .sort((a, b) => a.name.localeCompare(b.name));
+        
+        // 4. Set Years
+        this.years = ['All', ...data.years];
+      }
+    });
   }
 
   // --- ACTIONS ---
 
-  // Open Modal for Creating
   openAddModal() {
-    this.selectedTransaction = null; // Clear data
+    this.selectedTransaction = null; 
     this.showModal = true;
   }
 
-  // Open Modal for Editing
-  editTransaction(transaction: Transaction) {
-    this.selectedTransaction = { ...transaction }; // Clone to avoid direct mutation
+  editTransaction(transaction: Financial) {
+    this.selectedTransaction = { ...transaction }; 
     this.showModal = true;
   }
 
-  // Handle Save (Add or Update)
-  handleSaveTransaction(data: any) {
-    if (data.id) {
-      // UPDATE Existing
-      const index = this.allTransactions.findIndex(t => t.id === data.id);
-      if (index !== -1) {
-        this.allTransactions[index] = data;
-        this.toastService.show('Transaction updated successfully!', 'success', 3000);
-      }
+  handleSaveTransaction(data: Financial) {
+    const userId = this.auth.getUserId();
+    if (!userId) return;
+
+    const payload = { ...data, user: userId };
+
+    if (data._id) {
+      // UPDATE
+      this.financialService.updateRecord(userId, data._id, payload).subscribe({
+        next: (updatedTx) => {
+          // Update local list instantly
+          const index = this.allTransactions.findIndex(t => t._id === updatedTx._id);
+          if (index !== -1) this.allTransactions[index] = updatedTx;
+          
+          this.toastService.show('Transaction updated successfully!', 'success');
+          this.applyFilters();
+          this.showModal = false;
+        },
+        error: () => this.toastService.show('Update failed', 'error')
+      });
     } else {
-      // CREATE New
-      const newId = Math.max(...this.allTransactions.map(t => t.id), 0) + 1;
-      this.allTransactions.push({ ...data, id: newId });
-      this.toastService.show('Transaction added successfully!', 'success', 3000);
+      // CREATE
+      this.financialService.create(payload).subscribe({
+        next: (newTx) => {
+          this.allTransactions.unshift(newTx); // Add to top
+          this.toastService.show('Transaction added successfully!', 'success');
+          this.applyFilters(); 
+          this.loadFilters(userId); // Refresh categories
+          this.showModal = false;
+        },
+        error: () => this.toastService.show('Creation failed', 'error')
+      });
     }
-    
-    this.applyFilters();
-    this.showModal = false;
   }
 
-  // Open Delete Confirmation
-  deleteTransaction(id: number) {
+  deleteTransaction(id: string) {
+    if(!id) return;
     this.transactionToDeleteId = id;
     this.showDeleteModal = true;
   }
 
-  // Confirm Delete Action
   confirmDelete() {
-    if (this.transactionToDeleteId !== null) {
-      this.allTransactions = this.allTransactions.filter(t => t.id !== this.transactionToDeleteId);
-      this.applyFilters();
-      this.toastService.show('Transaction deleted successfully!', 'error', 3000); // Using 'error' type for red toast
-      
-      // Reset
-      this.showDeleteModal = false;
-      this.transactionToDeleteId = null;
+    const userId = this.auth.getUserId();
+    if (this.transactionToDeleteId && userId) {
+      this.financialService.deleteRecord(userId, this.transactionToDeleteId).subscribe({
+        next: () => {
+          this.allTransactions = this.allTransactions.filter(t => t._id !== this.transactionToDeleteId);
+          this.applyFilters();
+          this.toastService.show('Transaction deleted!', 'error');
+          this.showDeleteModal = false;
+        },
+        error: () => this.toastService.show('Delete failed', 'error')
+      });
     }
   }
 
-  // Cancel Delete
   cancelDelete() {
     this.showDeleteModal = false;
     this.transactionToDeleteId = null;
   }
-
 
   // --- FILTERING LOGIC ---
   applyFilters() {
@@ -126,7 +180,10 @@ export class TransactionsComponent implements OnInit {
       const amount = Math.abs(t.amount);
 
       const matchesText = t.title.toLowerCase().includes(this.filters.searchText.toLowerCase());
+      
+      // 🔥 Category Match Logic
       const matchesCategory = this.filters.category === 'All' || t.category === this.filters.category;
+      
       const matchesType = this.filters.type === 'All' || t.type === this.filters.type;
       const matchesYear = this.filters.year === 'All' || tDate.getFullYear().toString() === this.filters.year;
 
