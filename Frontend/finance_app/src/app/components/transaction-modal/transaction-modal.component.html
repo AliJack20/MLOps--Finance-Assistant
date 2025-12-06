@@ -5,25 +5,23 @@
   <div class="bg-[#1f2937] p-6 rounded-2xl w-96 shadow-2xl border border-gray-700 relative"
        (click)="$event.stopPropagation()">
     
-    <!-- Header -->
     <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-      <mat-icon class="text-green-400">receipt_long</mat-icon> Add Transaction
+      <mat-icon class="text-green-400">receipt_long</mat-icon> 
+      {{ isEditMode ? 'Edit Transaction' : 'Add Transaction' }}
     </h2>
 
     <form (ngSubmit)="onSubmit()" class="space-y-4">
       
-      <!-- Title -->
       <div>
         <label class="block text-xs text-gray-400 mb-1">Title</label>
-        <input type="text" [(ngModel)]="transaction.title" name="title" placeholder="e.g. Starbucks" 
+        <input type="text" [(ngModel)]="transaction.title" name="title" placeholder="e.g. Starbucks" required
                class="w-full p-3 rounded-xl bg-[#374151] text-white border-none focus:ring-2 focus:ring-green-500 outline-none">
       </div>
 
-      <!-- Amount & Type -->
       <div class="flex gap-3">
         <div class="flex-1">
           <label class="block text-xs text-gray-400 mb-1">Amount</label>
-          <input type="number" [(ngModel)]="transaction.amount" name="amount" placeholder="0.00" 
+          <input type="number" [(ngModel)]="transaction.amount" name="amount" placeholder="0.00" required
                  class="w-full p-3 rounded-xl bg-[#374151] text-white border-none focus:ring-2 focus:ring-green-500 outline-none">
         </div>
         <div class="w-1/3">
@@ -36,37 +34,49 @@
         </div>
       </div>
 
-      <!-- Date -->
       <div>
         <label class="block text-xs text-gray-400 mb-1">Date</label>
         <input type="date" [(ngModel)]="transaction.date" name="date"
                class="w-full p-3 rounded-xl bg-[#374151] text-white border-none focus:ring-2 focus:ring-green-500 outline-none">
       </div>
 
-      <!-- Category & Color -->
       <div class="flex gap-3 items-end">
         <div class="flex-1">
           <label class="block text-xs text-gray-400 mb-1">Category</label>
-          <select [(ngModel)]="transaction.category" (change)="onCategoryChange()" name="category"
+          <select [(ngModel)]="transaction.category" (change)="onCategoryChange()" name="category" required
                   class="w-full p-3 rounded-xl bg-[#374151] text-white border-none focus:ring-2 focus:ring-green-500 outline-none cursor-pointer">
-            <option *ngFor="let cat of categories" [value]="cat.name">{{ cat.name }}</option>
-            <option value="new">+ Create New</option>
+            
+            <option value="" disabled selected>Select Category</option>
+            
+            <ng-container *ngFor="let cat of filteredCategories">
+               <option [value]="cat.name">{{ cat.name }}</option>
+            </ng-container>
+            
+            <option value="new" class="text-green-400 font-bold">+ Create New</option>
           </select>
         </div>
-        <!-- Color Picker Preview -->
-        <div class="w-12 h-12 rounded-xl overflow-hidden border-2 border-gray-600 relative cursor-pointer">
-          <input type="color" [(ngModel)]="transaction.color" name="color" 
-                 class="absolute -top-2 -left-2 w-16 h-16 cursor-pointer border-none p-0">
+
+        <div class="w-12 h-12 rounded-xl overflow-hidden border-2 border-gray-600 relative cursor-pointer hover:border-white transition-colors">
+          <input type="color" [(ngModel)]="transaction.color" (change)="onColorChange()" name="color" 
+                 class="absolute -top-4 -left-4 w-20 h-20 cursor-pointer p-0 border-none">
         </div>
       </div>
 
-      <!-- Custom Category Input (Only if 'Create New' selected) -->
       <div *ngIf="isCustomCategory" class="animate-fade-in-down">
         <input type="text" [(ngModel)]="transaction.customCategory" name="customCategory" placeholder="Enter Category Name"
                class="w-full p-3 rounded-xl bg-[#374151] text-white border border-green-500/50 focus:border-green-500 outline-none">
       </div>
 
-      <!-- Buttons -->
+      <div *ngIf="warningMessage" class="text-[10px] text-yellow-400 bg-yellow-400/10 p-2 rounded border border-yellow-400/20 animate-pulse">
+        <mat-icon class="text-[10px] h-3 w-3 inline mr-1 align-middle">info</mat-icon>
+        {{ warningMessage }}
+      </div>
+
+      <div *ngIf="errorMessage" class="text-[10px] text-red-400 bg-red-400/10 p-2 rounded border border-red-400/20 animate-bounce">
+        <mat-icon class="text-[10px] h-3 w-3 inline mr-1 align-middle">error</mat-icon>
+        {{ errorMessage }}
+      </div>
+
       <div class="flex justify-end gap-3 mt-6">
         <button type="button" (click)="closeModal()" 
                 class="px-5 py-2 rounded-lg text-gray-300 hover:bg-gray-700 transition-colors font-medium">
@@ -74,7 +84,7 @@
         </button>
         <button type="submit" 
                 class="px-5 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg transition-transform active:scale-95">
-          Save Transaction
+          Save
         </button>
       </div>
 

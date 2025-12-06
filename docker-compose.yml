@@ -2,7 +2,9 @@ version: "3.9"
 
 services:
   inference_api:
-    build: .
+    build:
+      context: .
+      target: prod
     container_name: inference_api
     ports:
       - "8000:8000"
@@ -37,6 +39,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - ./monitoring/grafana:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     networks:
       - mlops-network
 
