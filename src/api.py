@@ -14,7 +14,7 @@ from typing import List, Optional, Any
 from src.inference import load_model, predict  # your existing functions
 
 from src.rag_app.llm import classify_intent, extract_transactions, generate_answer  # the GradioLLM instance
-from rag_app.rag import RAG
+from src.rag_app.rag import RAG
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
