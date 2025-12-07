@@ -41,3 +41,4 @@ accelerate
 sentencepiece
 gradio
 scikit-learn
+langchain

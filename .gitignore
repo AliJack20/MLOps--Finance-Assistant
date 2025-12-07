@@ -8,3 +8,4 @@ test_predictions.csv
 src/rag_app/data
 src/mlvenv
 embeddings_cache
+deploy_fastapi.sh
