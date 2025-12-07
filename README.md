@@ -592,6 +592,9 @@ Vector store can use FAISS if available, else TF-IDF fallback.
 
 Guardrails enforce input validation (PII, prompt injection) and output moderation (toxicity, hallucination detection).
 
+Also added a LangChain implementation to the RAG pipeline for Markdown.
+This enables better retrieval and structured Markdown output with our vector store.
+
 FastAPI exposes /metrics for Prometheus and is fully instrumented via prometheus-fastapi-instrumentator.
 
 Step-by-step deployment is reproducible via the Makefile.
