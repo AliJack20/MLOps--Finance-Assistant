@@ -24,8 +24,6 @@ from sklearn.metrics import root_mean_squared_error, r2_score
 from dotenv import load_dotenv
 import time
 import numpy as np
-from rag_app.rag import RAG
-from rag_app.llm import get_answer, get_intent
 import importlib
 from pathlib import Path
 
@@ -40,6 +38,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from experiments.scripts.run_prompts import run_all_prompts
+from src.rag_app.rag import RAG
+from src.rag_app.llm import generate_answer, classify_intent
 
 # Hyperparameters (from notebook)
 N_ESTIMATORS = int(os.getenv("N_ESTIMATORS", 100))
@@ -90,6 +90,13 @@ def upload_file_to_s3(local_path: str, bucket: str, key: str):
 
 
 def main():
+
+    public_ip = start_ec2_instance(API_INSTANCE_ID, region)
+    run_docker_commands_on_ec2(API_INSTANCE_ID, region, "MLOps pair.pem")
+    print(f"Finance Aisstant API is live at: http://{public_ip}:8000/docs for 10 Minutes")
+    time.sleep(600)  # Runs for 10 Minutes
+    # Stop EC2 and docker
+    stop_ec2_instance(API_INSTANCE_ID, region, "MLOps pair.pem")
 
     if not MLFLOW_TRACKING_URI:
         raise EnvironmentError(
