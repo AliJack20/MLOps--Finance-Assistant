@@ -39,7 +39,15 @@ The Financial Assistant LLMOps project demonstrates a complete operational workf
 - Added prompt templates and LLM chains to standardize responses and reduce inconsistency.
 
 ---
+## Application Interface
+### Signup Page
+<img width="1916" height="1025" alt="1 login" src="https://github.com/user-attachments/assets/9b5ad983-b9d1-48cf-b0d7-b51e1d7d2449" />
 
+### Dashboard
+<img width="1920" height="1005" alt="4 Dashboard" src="https://github.com/user-attachments/assets/14a5ded2-237b-4f0d-b78b-07862660092b" />
+
+### Calendar
+<img width="1920" height="1025" alt="5 Calendar" src="https://github.com/user-attachments/assets/4ea3ede1-f147-4c9e-9bf0-b1320a5e7444" />
 
 
 ## Architecture
