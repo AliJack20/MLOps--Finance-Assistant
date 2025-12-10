@@ -1,0 +1,51 @@
+<div class="min-h-screen py-16 px-4 sm:px-6 lg:px-8" [ngStyle]="{'background': 'var(--bg-main)'}">
+  <div class="max-w-3xl mx-auto">
+    
+    <div class="text-center mb-12">
+      <h1 class="text-4xl font-bold mb-4" [ngStyle]="{'color': 'var(--accent)'}">
+        Frequently Asked Questions
+      </h1>
+      <p class="text-lg" [ngStyle]="{'color': 'var(--text-muted)'}">
+        Everything you need to know about FinanceBot.
+      </p>
+    </div>
+
+    <div class="space-y-4">
+      <div *ngFor="let faq of faqs; let i = index" 
+           class="rounded-xl border transition-all duration-200"
+           [ngStyle]="{
+             'background': 'var(--bg-secondary)', 
+             'border-color': 'var(--border)'
+           }">
+        
+        <button (click)="toggle(i)" 
+                class="w-full px-6 py-5 text-left flex justify-between items-center focus:outline-none">
+          <span class="text-lg font-semibold" [ngStyle]="{'color': 'var(--text-main)'}">
+            {{ faq.question }}
+          </span>
+          <mat-icon class="transition-transform duration-300 text-gray-400" 
+                    [ngClass]="{'rotate-180': faq.open}">
+            keyboard_arrow_down
+          </mat-icon>
+        </button>
+
+        <div *ngIf="faq.open" 
+             class="px-6 pb-6 pt-0 leading-relaxed"
+             [ngStyle]="{'color': 'var(--text-muted)'}"
+             data-aos="fade-in" data-aos-duration="300">
+          {{ faq.answer }}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-12 text-center">
+      <p [ngStyle]="{'color': 'var(--text-muted)'}">
+        Still have questions? 
+        <a href="#" class="font-medium hover:underline" [ngStyle]="{'color': 'var(--accent)'}">
+          Contact Support
+        </a>
+      </p>
+    </div>
+
+  </div>
+</div>

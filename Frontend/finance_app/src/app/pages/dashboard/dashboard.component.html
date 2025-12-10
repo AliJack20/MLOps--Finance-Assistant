@@ -1,0 +1,104 @@
+<div class="p-6 min-h-screen" [ngStyle]="{'color': 'var(--text-main)'}">
+  
+  <div class="flex justify-between items-center mb-8">
+    <h2 class="text-3xl font-bold" [ngStyle]="{'color': 'var(--accent)'}">Financial Dashboard</h2>
+    <button (click)="openAddTransaction()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-lg flex items-center gap-2">
+      <mat-icon>add</mat-icon> Add Transaction
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    
+    <div class="p-6 rounded-xl shadow-lg border border-gray-700 relative overflow-hidden"
+         [ngStyle]="{'background': 'var(--bg-secondary)'}">
+      <div class="relative z-10">
+        <p class="text-sm opacity-70 mb-1">Total Balance</p>
+        <h3 class="text-3xl font-bold text-white">{{ stats?.balance | currency }}</h3>
+        <span class="text-xs text-green-400 flex items-center mt-2">
+          <mat-icon class="text-sm h-4 w-4">trending_up</mat-icon> Active
+        </span>
+      </div>
+    </div>
+
+    <div class="p-6 rounded-xl shadow-lg border border-gray-700" [ngStyle]="{'background': 'var(--bg-secondary)'}">
+      <p class="text-sm opacity-70 mb-1">Monthly Income</p>
+      <h3 class="text-3xl font-bold text-green-400">{{ stats?.monthlyIncome | currency }}</h3>
+      <p class="text-xs opacity-50 mt-2">Cash Inflow</p>
+    </div>
+
+    <div class="p-6 rounded-xl shadow-lg border border-gray-700" [ngStyle]="{'background': 'var(--bg-secondary)'}">
+      <p class="text-sm opacity-70 mb-1">Monthly Expenses</p>
+      <h3 class="text-3xl font-bold text-red-400">{{ stats?.monthlyExpense | currency }}</h3>
+      <p class="text-xs opacity-50 mt-2">Cash Outflow</p>
+    </div>
+
+    <div class="p-6 rounded-xl shadow-lg border border-gray-700 relative overflow-hidden group" [ngStyle]="{'background': 'var(--bg-secondary)'}">
+      <div class="relative z-10">
+        <p class="text-sm opacity-70 mb-1 flex items-center gap-2">
+          <mat-icon class="text-purple-400 text-sm">auto_awesome</mat-icon> Predicted Spend
+        </p>
+        
+        <h3 *ngIf="stats?.prediction; else noPred" class="text-3xl font-bold text-purple-400">
+          {{ stats?.prediction?.prediction_next_week | currency }}
+        </h3>
+        <ng-template #noPred>
+          <h3 class="text-xl font-bold text-gray-500 mt-1 animate-pulse">Calculating...</h3>
+        </ng-template>
+
+        <p class="text-xs opacity-50 mt-2">Next 7 Days Forecast</p>
+      </div>
+      <div class="absolute -bottom-4 -right-4 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all duration-500"></div>
+    </div>
+
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="lg:col-span-2 p-6 rounded-xl shadow-lg border border-gray-700" [ngStyle]="{'background': 'var(--bg-secondary)'}">
+      <h3 class="text-lg font-semibold mb-4 opacity-90">Cash Flow</h3>
+      <div class="h-64 w-full"><canvas id="cashFlowChart"></canvas></div>
+    </div>
+    <div class="p-6 rounded-xl shadow-lg border border-gray-700" [ngStyle]="{'background': 'var(--bg-secondary)'}">
+      <h3 class="text-lg font-semibold mb-4 opacity-90">Categories</h3>
+      <div class="h-64 w-full flex justify-center"><canvas id="categoryChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="p-6 rounded-xl shadow-lg border border-gray-700" [ngStyle]="{'background': 'var(--bg-secondary)'}">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold opacity-90">Recent Activity</h3>
+        <a routerLink="/transactions" class="text-sm text-blue-400 hover:underline cursor-pointer">View All</a>
+      </div>
+      <ul class="space-y-3">
+        <li *ngFor="let t of recentTransactions" class="flex justify-between items-center p-3 rounded-lg hover:bg-white/5 transition-colors">
+          <div class="flex items-center gap-3">
+            <div class="p-2 rounded-full" [ngClass]="t.type === 'income' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'">
+              <mat-icon class="text-sm">{{ t.type === 'income' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+            </div>
+            <div>
+              <p class="font-medium">{{ t.title }}</p>
+              <p class="text-xs opacity-50">{{ t.date | date:'MMM d' }} • {{ t.category }}</p>
+            </div>
+          </div>
+          <span class="font-bold" [ngClass]="t.type === 'income' ? 'text-green-400' : 'text-red-400'">{{ t.amount | currency }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="p-6 rounded-xl shadow-lg border border-gray-700" [ngStyle]="{'background': 'var(--bg-secondary)'}">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold opacity-90">Bill Calendar</h3>
+        <button routerLink="/calendar" class="text-sm text-blue-400 hover:underline">Open Full View →</button>
+      </div>
+      <full-calendar [options]="calendarOptions"></full-calendar>
+    </div>
+  </div>
+
+  <app-transaction-modal 
+    [visible]="showTransactionModal"
+    [categories]="categories"
+    (close)="closeTransactionModal()"
+    (save)="handleNewTransaction($event)">
+  </app-transaction-modal>
+
+</div>

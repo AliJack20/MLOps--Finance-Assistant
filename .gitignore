@@ -1,0 +1,11 @@
+.env
+data/
+mlruns/708024358232927332
+monitoring/grafana/
+MLOps pair.pem
+.github/workflows/cd.yml
+test_predictions.csv
+src/rag_app/data
+src/mlvenv
+embeddings_cache
+deploy_fastapi.sh
