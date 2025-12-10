@@ -25,7 +25,22 @@ The Financial Assistant LLMOps project demonstrates a complete operational workf
 - Automate deployment and CI/CD for reproducibility.
 - Maintain responsible AI practices and auditability.
 
+### Bonus Paths done
+#### AWS LAMBDA INTEGRATION
+- Used AWS Lambda to run lightweight serverless tasks on-demand.
+- Automated evaluation triggers, such as running prompt tests after every commit.
+- Enabled cost-efficient scaling, since Lambda runs only when needed.
+- Deployed small utility functions (cleanup, logging, syncing S3 → vector store) without needing full servers.
+  
+#### LANGCHAIN INTEGRATION
+- Integrated LangChain to manage the RAG pipeline more efficiently.
+- Used its modular chains to orchestrate document loading, embeddings, and retrieval.
+- Enabled custom retrievers and improved query routing for higher-quality answers.
+- Added prompt templates and LLM chains to standardize responses and reduce inconsistency.
+
 ---
+
+
 
 ## Architecture
 ![WhatsApp Image 2025-12-05 at 01 59 27_9722532b](https://github.com/user-attachments/assets/b5f980c5-b93b-4abe-8af4-89c85e619793)
